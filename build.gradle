@@ -33,6 +33,19 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
+tasks.register('installGitHooks', Exec) {
+	group = 'git'
+	description = 'Configure Git hooks'
+	commandLine 'git', 'config', 'core.hooksPath', '.githooks'
+
+	doLast {
+		fileTree('.githooks').forEach {
+			it.setExecutable(true)
+		}
+		println 'Git hooks configured.'
+	}
+}
+
 spotless {
   java {
 	  googleJavaFormat('1.27.0')
