@@ -1,0 +1,10 @@
+.git
+.gradle
+build
+.env*
+.idea
+.vscode
+.DS_Store
+*.log
+README.md
+gradlew.bat
