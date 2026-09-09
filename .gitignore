@@ -6,8 +6,8 @@ build/
 !**/src/test/**/build/
 
 .env
-application-local.yml
-application-local.properties
+**/application-*.yml
+!**/application-local.yml
 
 ### STS ###
 .apt_generated
