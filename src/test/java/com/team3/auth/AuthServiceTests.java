@@ -1,5 +1,9 @@
 package com.team3.auth;
 
+import com.team3.user.User;
+import com.team3.user.Provider;
+import com.team3.user.UserRepository;
+
 import com.team3.auth.jwt.JwtProvider;
 import com.team3.auth.jwt.JwtConfig;
 import com.team3.auth.token.RefreshTokenService;
@@ -25,6 +29,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import javax.crypto.SecretKey;
 
@@ -42,6 +47,7 @@ class AuthServiceTests {
 
     private static final String SECRET = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
     private final RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
+    private final UserRepository users = mock(UserRepository.class);
     private final JwtConfig config = new JwtConfig();
     private final Clock clock = Clock.systemUTC();
     private AuthService service;
@@ -144,10 +150,32 @@ class AuthServiceTests {
         assertThatThrownBy(() -> service.issue(-1L)).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void createsUserAndRecoversConcurrentCreationConflict() {
+        Long id = 42L;
+        User user = mock(User.class);
+        when(user.id()).thenReturn(id);
+        when(users.saveAndFlush(any(User.class))).thenReturn(user);
+        assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123")).isEqualTo(id);
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(users).saveAndFlush(saved.capture());
+        assertThat(ReflectionTestUtils.getField(saved.getValue(), "provider")).isEqualTo(Provider.KAKAO);
+        assertThat(ReflectionTestUtils.getField(saved.getValue(), "providerId")).isEqualTo("external:abc-123");
+
+        DataIntegrityViolationException conflict = new DataIntegrityViolationException("duplicate");
+        when(users.saveAndFlush(any(User.class))).thenThrow(conflict);
+        when(users.findByProviderAndProviderId(Provider.KAKAO, "external:def-456")).thenReturn(Optional.empty())
+            .thenReturn(Optional.of(user));
+        assertThat(service.findOrCreateUser(Provider.KAKAO, "external:def-456")).isEqualTo(id);
+        assertThatThrownBy(() -> service.findOrCreateUser(Provider.KAKAO, "external:ghi-789")).isSameAs(conflict);
+    }
+
     private AuthService service(Clock tokenClock) {
         return new AuthService(new RefreshTokenService(repository, tokenClock,
             Duration.ofMinutes(15), Duration.ofDays(14)),
-            new JwtProvider(config.jwtEncoder(config.jwtKey(SECRET)), tokenClock, "backend", Duration.ofMinutes(15)));
+            new JwtProvider(config.jwtEncoder(config.jwtKey(SECRET)), tokenClock, "backend", Duration.ofMinutes(15)),
+            users);
     }
 
     private void assertUnauthorized(Runnable action) {

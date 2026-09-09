@@ -5,6 +5,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.team3.auth.token.RefreshTokenRepository;
+import com.team3.user.UserRepository;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude="
@@ -16,6 +17,9 @@ class BackendApplicationTests {
 
     @MockitoBean
     private RefreshTokenRepository refreshTokenRepository;
+
+    @MockitoBean
+    private UserRepository users;
 
     @Test
     void contextLoads() {

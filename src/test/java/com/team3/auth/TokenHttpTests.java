@@ -1,8 +1,11 @@
 package com.team3.auth;
 
+import com.team3.user.UserRepository;
+
 import com.team3.auth.token.RefreshToken;
 import com.team3.auth.token.RefreshTokenRepository;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -24,6 +27,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -42,6 +46,17 @@ class TokenHttpTests {
     private AuthService tokens;
     @MockitoBean
     private RefreshTokenRepository repository;
+
+    @MockitoBean
+    private UserRepository users;
+
+    @Test
+    void disabledKakaoLoginDoesNotCreateSession() throws Exception {
+        MvcResult result = mvc.perform(get("/auth/kakao"))
+            .andExpect(status().isNotFound()).andReturn();
+        assertThat(result.getRequest().getSession(false)).isNull();
+        mvc.perform(get("/auth/kakao/callback")).andExpect(status().isNotFound());
+    }
 
     @Test
     void protectedEndpointRequiresValidBearerToken() throws Exception {
