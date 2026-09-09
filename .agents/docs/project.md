@@ -1,7 +1,8 @@
 # Project context
 
-- Status: backend foundation; no business-domain controllers, services, entities, or repositories yet.
+- Status: backend foundation with JWT issuance and refresh support; Kakao OAuth is not connected yet.
 - Architecture: no agreed domain architecture; do not assume one.
+- Authentication: see [auth.md](auth.md) for token flows, configuration, and verification scope.
 
 ## Sources of truth
 
@@ -19,8 +20,8 @@
 
 ## Runtime boundaries
 
-- Persistence: Open Session in View disabled; automatic schema changes disabled (`ddl-auto: none`).
-- Migrations: no migration tool configured.
+- Persistence: Open Session in View disabled; automatic schema changes disabled (`ddl-auto: validate`).
+- Migrations: Flyway; `src/main/resources/db/migration/` contains schema migrations.
 - Local profile: optional `.env` import; API docs enabled.
 - Shared defaults: API docs disabled; only Actuator health exposed; health/error internals hidden.
 - `bootRun`: local profile by default.
