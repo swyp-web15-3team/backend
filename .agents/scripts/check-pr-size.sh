@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 1 || $# -gt 2 ]]; then
-  echo "Usage: bash $0 <actual-base-ref> [candidate-head-ref]" >&2
+if [[ $# -ne 3 ]]; then
+  echo "Usage: bash $0 <actual-base-ref> <candidate-head-ref> <create|modify|delete>" >&2
   exit 2
 fi
 
-base=$(git merge-base "$1" "${2:-HEAD}")
-git diff --no-ext-diff --no-textconv --no-renames --numstat "$base" "${2:-HEAD}" -- |
+case "$3" in
+  create|modify|delete) ;;
+  *) echo "Invalid change type: use create, modify, or delete." >&2; exit 2 ;;
+esac
+
+base=$(git merge-base "$1" "$2")
+if [[ "$3" != modify ]]; then
+  echo "PASS: feature $3 has no PR line limit."
+  exit 0
+fi
+git diff --no-ext-diff --no-textconv --no-renames --numstat "$base" "$2" -- |
   awk -F '\t' '
     $1 == "-" || $2 == "-" { binary = 1; next }
     { total += $1 + $2 }

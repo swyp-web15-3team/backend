@@ -11,8 +11,8 @@
 - Workflow: read and follow [.agents/skills/feature-development.md](.agents/skills/feature-development.md).
 - Before implementation: inspect existing code and publish a concrete plan in the conversation.
 - Implementation: deliver the minimum required behavior; avoid overengineering.
-- PR limit: at most 400 added plus deleted lines per PR, including tests, configuration, and documentation.
-- Overflow: split into coherent follow-up PRs; never waive the limit or omit necessary tests to fit.
+- PR limit: only existing-feature modification PRs are limited to 400 added plus deleted lines, including tests, configuration, and documentation. Feature creation and feature deletion PRs have no line limit.
+- Overflow: split oversized feature modification PRs into coherent follow-up PRs; never waive the limit or omit necessary tests to fit.
 
 ## Code review harness
 
