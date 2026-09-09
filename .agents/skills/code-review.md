@@ -56,7 +56,7 @@ description: Review backend changes for actionable correctness, security, persis
   schema application strategy compatible with `ddl-auto: none`.
 - **Configuration and delivery:** local/test/prod isolation, hidden production docs
   and diagnostics, environment variables, Java 21 compatibility, and CI coverage.
-  Remember that `check` excludes integration tests and connectivity expects PostgreSQL 17.
+  `check` runs unit and HTTP tests without a database; database behavior is not covered.
 - **Maintainability:** flag complexity only when it causes a concrete maintenance
   problem; do not fill the report with formatter preferences or speculative abstractions.
 
@@ -112,7 +112,7 @@ description: Review backend changes for actionable correctness, security, persis
   and tests, then report the disclosure at the changed lines with its trigger.
 - Re-review: inspect a fix for that disclosure; verify current behavior before marking
   it resolved, and check additional changes for regressions.
-- Error: review persistence changes without PostgreSQL available; complete static
-  review and explicitly state that integration tests were not run.
+- Error: review persistence changes without database verification; complete static
+  review and explicitly state that database behavior was not verified.
 - Missing input: a clean working tree and no target produces a request for scope,
   not a claim that the branch is safe.

@@ -22,19 +22,21 @@
 
 ## Persistence
 
+- ORM first: use existing JPA entities and Spring Data JPA repositories for application data access.
+- Avoid raw SQL: do not introduce JdbcTemplate, direct JDBC, or native queries when ORM can express the required behavior; shorter code alone is not a reason to bypass ORM.
+- Exceptions: use raw SQL only for a demonstrated ORM limitation or measured performance need, and document the concrete reason. Flyway schema migration SQL is allowed.
 - Entity loading: account for disabled Open Session in View and transaction boundaries.
 - Schema changes: provide an explicit, reviewable application strategy compatible with `ddl-auto: none`.
+- Migration immutability: NEVER edit, delete, rename, or consolidate existing versioned migration files. This applies even before deployment and even if the database can be recreated.
+- Subsequent schema changes: ALWAYS add a new migration file with a higher version; preserve all previous migration files exactly as written.
 - Auto-DDL: do not silently enable it.
 
 ## Verification
 
 - Test patterns: reuse JUnit, AssertJ, and MockMvc conventions.
 - Nontrivial logic: add a focused regression check.
-- Database tests: use the test profile and `integration` tag.
-- PostgreSQL checks: do not assume an in-memory database is equivalent.
 - During development: run focused tests.
 - Java/build changes: run `./gradlew check`.
-- Persistence changes: run `integrationTest` with the test database available.
 - Documentation changes: check links, accuracy, and diff formatting.
 - Unavailable checks: report skipped checks and their causes explicitly.
 - Working tree: preserve unrelated changes; do not reset work for verification.
