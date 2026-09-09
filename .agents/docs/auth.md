@@ -1,7 +1,8 @@
 # Token authentication
 
-- After Kakao OAuth verifies the user, call `AuthService.issue(internalUserId)` from the server.
-  No public token-issuance endpoint is exposed.
+- `GET /auth/kakao` starts OAuth; `/auth/kakao/callback` validates a single-use five-minute session state, verifies the Kakao user, resolves an auto-increment Long user ID, and calls `AuthService.issue(internalUserId)`.
+- Kakao setup: set `KAKAO_LOGIN_ENABLED=true`, `KAKAO_CLIENT_ID` (REST API key), and `KAKAO_REDIRECT_URI` matching the URI registered with Kakao. Set `KAKAO_CLIENT_SECRET` if enabled in Kakao.
+- Default callback: `http://localhost:8080/auth/kakao/callback`; use HTTPS in production. The callback returns token JSON.
 - Send access tokens as `Authorization: Bearer <accessToken>`; they expire after 15 minutes.
 - `POST /auth/refresh` accepts JSON `{"refreshToken":"..."}` and returns
   `accessToken`, `refreshToken`, and `expiresIn` (access-token lifetime in seconds).
@@ -19,7 +20,13 @@
 - Setup: run `openssl rand -base64 32` and place the result in `.env` as `JWT_SECRET`.
 - Verification: `./gradlew check`; no integration tests or `integrationTest` task are added in this branch.
 
-- Structure: `AuthController` and `AuthService` expose and coordinate authentication flows;
-  `jwt/JwtProvider` issues access tokens; `token/` owns refresh-token persistence and rotation.
-- `TokenConfiguration` wires Spring Security’s built-in bearer-token filter and JWT decoder.
-  Add `KakaoClient` when implementing Kakao OAuth; no placeholder client or custom JWT filter is present.
+- Structure: `auth/AuthController` handles Kakao login/callback, refresh, and logout; `AuthService` coordinates token operations and JPA user lookup/creation.
+- `jwt/JwtProvider` issues access tokens; `token/` owns refresh-token persistence and rotation.
+- `global/security/SecurityConfig` owns HTTP authorization, CSRF/session policy, and Resource Server JWT authentication.
+- `auth/jwt/JwtConfig` provides the clock, signing key, encoder, decoder, and issuer validation.
+  `KakaoClient` exchanges codes and retrieves the Kakao user ID; `user/User` and `user/UserRepository` persist the auto-increment Long user ID and unique `(provider, providerId)` pair in `users`. `Provider` is stored by enum name; `providerId` is an opaque string of 1 to 255 characters. Kakao login supplies `Provider.KAKAO` and the Kakao user ID as a string.
+
+- Migrations: immutable V1 creates refresh-token storage; V2 creates users with BIGINT IDENTITY IDs and unique `(provider, provider_id)`; V3 replaces refresh-token `subject` with a non-null BIGINT `user_id` FK and `ON DELETE CASCADE`. Refresh-token row IDs remain UUIDs. JWT `sub` is the decimal string of the internal Long user ID.
+- V3 preserves token hashes and expiry by matching existing subjects to `users.id::text`. Unmapped subjects cause migration failure and transaction rollback; investigate their provenance before retrying, without guessing account ownership or deleting data.
+- Before deployment: inspect the target DB Flyway history and schema. Databases with different historical V2/V3 files require a separately reviewed reconciliation; do not edit migrations, repair checksums, or recreate databases to bypass a mismatch.
+- Deploy the schema and application together with old instances stopped: V3 removes the column used by the old application.
