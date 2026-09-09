@@ -5,6 +5,7 @@
 - Before editing: trace the affected flow and all callers of shared functions.
 - Reuse: prefer existing code and dependencies; add only required structure.
 - Packages: follow nearby code under `com.team3`.
+- Java variable declarations: avoid `var`; prefer explicit types.
 - Domain layers: no established convention; avoid empty controllers/services/repositories.
 - Formatting: follow `.editorconfig`, the Eclipse formatter, and Checkstyle.
 - Diff scope: inspect formatter changes; exclude unrelated cleanup.
