@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Kakao 로그인 테스트</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 48px 20px; background: #f6f7f9; color: #222; font: 16px/1.7 system-ui, sans-serif; }
+    main { max-width: 720px; margin: auto; padding: 32px; background: white; border: 1px solid #ddd; border-radius: 16px; }
+    h1 { margin-top: 0; font-size: 28px; }
+    h2 { margin-top: 32px; font-size: 20px; }
+    li { margin-bottom: 10px; }
+    code, pre { background: #f1f3f5; border-radius: 4px; }
+    code { padding: 2px 4px; overflow-wrap: anywhere; }
+    pre { padding: 16px; overflow-x: auto; font-size: 13px; }
+    .login { display: inline-block; padding: 12px 24px; border-radius: 8px; background: #fee500; color: #191919; font-weight: 700; text-decoration: none; }
+    a:focus-visible { outline: 3px solid #1259bb; outline-offset: 4px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Kakao 로그인 테스트</h1>
+    <p>백엔드의 Kakao 로그인 전체 흐름을 브라우저에서 확인합니다.</p>
+    <!-- 다른 서버를 테스트할 때는 아래 href와 서버의 KAKAO_REDIRECT_URI를 함께 맞추세요. -->
+    <a class="login" href="http://localhost:8080/auth/kakao">카카오 로그인 시작</a>
+    <p>대상 서버: <code>http://localhost:8080</code></p>
+
+    <h2>실행 준비</h2>
+    <ol>
+      <li>Kakao Developers에서 앱의 카카오 로그인을 활성화하고 Redirect URI에
+        <code>http://localhost:8080/auth/kakao/callback</code>을 등록합니다.</li>
+      <li>백엔드 루트의 <code>.env</code>에 아래 값을 설정합니다.
+        Client Secret을 사용하는 앱은 해당 값도 입력합니다. 키와 시크릿은 이 HTML에 넣지 않습니다.</li>
+    </ol>
+    <pre>KAKAO_LOGIN_ENABLED=true
+KAKAO_CLIENT_ID=앱의_REST_API_키
+KAKAO_CLIENT_SECRET=
+KAKAO_REDIRECT_URI=http://localhost:8080/auth/kakao/callback</pre>
+    <ol start="3">
+      <li>기존 DB 접속 설정과 유효한 <code>JWT_SECRET</code>을 준비하고 DB를 실행합니다.
+        JWT_SECRET은 최소 32바이트 난수를 Base64로 인코딩한 값이어야 합니다.</li>
+      <li>저장소 루트에서 <code>./gradlew bootRun</code>으로 백엔드를 실행합니다.</li>
+      <li>이 HTML 파일을 브라우저에서 직접 열고 로그인 버튼을 누릅니다. 별도 HTML 서버는 필요 없습니다.</li>
+    </ol>
+
+    <h2>결과 확인</h2>
+    <p>카카오 로그인과 동의가 끝나면 백엔드 콜백 화면으로 이동합니다.
+      성공 응답의 <code>accessToken</code>, <code>refreshToken</code>, <code>expiresIn</code>을 확인하세요.
+      토큰은 콜백 화면에 표시되므로 응답을 공유하지 마세요.</p>
+    <p>다시 테스트하려면 이 페이지로 돌아와 로그인 버튼을 누르세요.
+      콜백 URL을 새로고침하면 이미 사용한 state가 거부되어 400 오류가 발생합니다.</p>
+    <ul>
+      <li>연결 실패: 백엔드 실행 여부와 포트를 확인합니다.</li>
+      <li>404: <code>KAKAO_LOGIN_ENABLED=true</code> 적용 후 서버를 재시작했는지 확인합니다.</li>
+      <li>400 / Invalid OAuth state: 로그인 버튼부터 다시 시작합니다.
+        로그인 시작 주소와 콜백 주소의 호스트를 동일하게 유지하세요. localhost와 127.0.0.1을 섞지 않습니다.</li>
+      <li>카카오 설정 오류: REST API 키, Client Secret, 등록한 Redirect URI와 서버 설정을 확인합니다.</li>
+    </ul>
+    <p>다른 호스트나 포트를 쓰면 HTML의 로그인 링크, 서버의 <code>KAKAO_REDIRECT_URI</code>,
+      Kakao Developers에 등록한 Redirect URI를 함께 변경하세요.</p>
+    <p><a href="https://developers.kakao.com/docs/ko/tutorial/login" rel="noreferrer">Kakao 공식 로그인 설정 안내</a></p>
+  </main>
+</body>
+</html>
