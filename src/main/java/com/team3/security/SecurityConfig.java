@@ -18,6 +18,7 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> {
+                auth.requestMatchers(HttpMethod.GET, "/auth/kakao", "/auth/kakao/callback").permitAll();
                 auth.requestMatchers(HttpMethod.POST, "/auth/refresh", "/auth/logout").permitAll();
                 auth.requestMatchers("/actuator/health", "/error").permitAll();
                 if (docsEnabled) {
