@@ -7,7 +7,6 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -25,8 +24,8 @@ public class JwtConfig {
     }
 
     @Bean
-    public SecretKey jwtKey(@Value("${auth.jwt.secret}") String secret) {
-        byte[] bytes = Base64.getDecoder().decode(secret);
+    public SecretKey jwtKey(JwtProperties properties) {
+        byte[] bytes = Base64.getDecoder().decode(properties.secret());
         if (bytes.length < 32) {
             throw new IllegalArgumentException("JWT secret must contain at least 32 random bytes.");
         }
@@ -39,9 +38,9 @@ public class JwtConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder(SecretKey key, @Value("${auth.jwt.issuer}") String issuer) {
+    public JwtDecoder jwtDecoder(SecretKey key, JwtProperties properties) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(properties.issuer()));
         return decoder;
     }
 

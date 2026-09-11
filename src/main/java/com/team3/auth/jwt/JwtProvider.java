@@ -5,7 +5,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -21,16 +20,11 @@ public class JwtProvider {
     private final String issuer;
     private final Duration accessTtl;
 
-    public JwtProvider(JwtEncoder encoder, Clock clock,
-        @Value("${auth.jwt.issuer}") String issuer,
-        @Value("${auth.jwt.access-ttl}") Duration accessTtl) {
-        if (accessTtl.getSeconds() < 1) {
-            throw new IllegalArgumentException("Access token lifetime must be positive.");
-        }
+    public JwtProvider(JwtEncoder encoder, Clock clock, JwtProperties properties) {
         this.encoder = encoder;
         this.clock = clock;
-        this.issuer = issuer;
-        this.accessTtl = accessTtl;
+        this.issuer = properties.issuer();
+        this.accessTtl = properties.accessTtl();
     }
 
     public String issue(Long userId) {
@@ -39,9 +33,5 @@ public class JwtProvider {
             .issuedAt(now).expiresAt(now.plus(accessTtl)).id(UUID.randomUUID().toString()).build();
         return encoder.encode(JwtEncoderParameters.from(
             JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
-    }
-
-    public long expiresIn() {
-        return accessTtl.toSeconds();
     }
 }
