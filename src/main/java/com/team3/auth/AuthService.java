@@ -25,17 +25,23 @@ public class AuthService {
         this.users = users;
     }
 
-    // Repository writes must finish their own rollback before a conflicting user
-    // is read again.
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public Long findOrCreateUser(Provider provider, String providerId) {
-        return users.findByProviderAndProviderId(provider, providerId).map(User::id).orElseGet(() -> {
-            try {
-                return users.saveAndFlush(new User(provider, providerId)).id();
-            } catch (DataIntegrityViolationException ex) {
-                return users.findByProviderAndProviderId(provider, providerId).map(User::id).orElseThrow(() -> ex);
+    public UserResult findOrCreateUser(Provider provider, String providerId) {
+        User user = users.findByProviderAndProviderId(provider, providerId).orElse(null);
+        if (user != null) {
+            return new UserResult(user.id(), false);
+        }
+
+        try {
+            User created = users.saveAndFlush(new User(provider, providerId));
+            return new UserResult(created.id(), true);
+        } catch (DataIntegrityViolationException ex) {
+            User existing = users.findByProviderAndProviderId(provider, providerId).orElse(null);
+            if (existing != null) {
+                return new UserResult(existing.id(), false);
             }
-        });
+            throw ex;
+        }
     }
 
     public TokenPair issue(Long userId) {
@@ -53,9 +59,12 @@ public class AuthService {
     }
 
     private TokenPair tokens(Long userId, String refresh) {
-        return new TokenPair(jwtProvider.issue(userId), refresh, jwtProvider.expiresIn());
+        return new TokenPair(jwtProvider.issue(userId), refresh);
     }
 
-    public record TokenPair(String accessToken, String refreshToken, long expiresIn) {
+    public record TokenPair(String accessToken, String refreshToken) {
+    }
+
+    public record UserResult(Long userId, boolean isNewUser) {
     }
 }

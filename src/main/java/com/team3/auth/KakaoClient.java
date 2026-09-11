@@ -7,7 +7,6 @@ import java.time.Duration;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,7 +18,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 @ConditionalOnProperty(name = "auth.kakao.enabled", havingValue = "true")
@@ -30,13 +28,13 @@ public class KakaoClient {
     private final String redirectUri;
 
     @Autowired
-    public KakaoClient(RestClient.Builder builder, @Value("${auth.kakao.client-id}") String clientId,
-        @Value("${auth.kakao.client-secret}") String clientSecret,
-        @Value("${auth.kakao.redirect-uri}") String redirectUri) {
-        this(createClient(builder), clientId, clientSecret, redirectUri);
+    public KakaoClient(RestClient.Builder builder, KakaoProperties properties) {
+        this(createClient(builder), properties);
     }
 
-    KakaoClient(RestClient client, String clientId, String clientSecret, String redirectUri) {
+    KakaoClient(RestClient client, KakaoProperties properties) {
+        String clientId = properties.clientId();
+        String redirectUri = properties.redirectUri();
         URI redirect = URI.create(redirectUri);
         if (clientId.isBlank() || redirect.getHost() == null || redirect.getFragment() != null
             || !("https".equals(redirect.getScheme()) || "http".equals(redirect.getScheme()))) {
@@ -44,7 +42,7 @@ public class KakaoClient {
         }
         this.client = client;
         this.clientId = clientId;
-        this.clientSecret = clientSecret;
+        this.clientSecret = properties.clientSecret();
         this.redirectUri = redirectUri;
     }
 
@@ -53,12 +51,6 @@ public class KakaoClient {
             .connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build());
         factory.setReadTimeout(Duration.ofSeconds(5));
         return builder.requestFactory(factory).build();
-    }
-
-    public URI authorizationUri(String state) {
-        return UriComponentsBuilder.fromUriString("https://kauth.kakao.com/oauth/authorize")
-            .queryParam("response_type", "code").queryParam("client_id", clientId)
-            .queryParam("redirect_uri", redirectUri).queryParam("state", state).build().encode().toUri();
     }
 
     public long userId(String code) {

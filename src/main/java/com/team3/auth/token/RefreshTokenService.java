@@ -1,5 +1,6 @@
 package com.team3.auth.token;
 
+import com.team3.auth.jwt.JwtProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -9,7 +10,6 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.HexFormat;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,15 +24,10 @@ public class RefreshTokenService {
     private final Duration refreshTtl;
     private final SecureRandom random = new SecureRandom();
 
-    public RefreshTokenService(RefreshTokenRepository repository, Clock clock,
-        @Value("${auth.jwt.access-ttl}") Duration accessTtl,
-        @Value("${auth.jwt.refresh-ttl}") Duration refreshTtl) {
-        if (accessTtl.getSeconds() < 1 || refreshTtl.compareTo(accessTtl) <= 0) {
-            throw new IllegalArgumentException("Token lifetimes must be positive, with refresh longer than access.");
-        }
+    public RefreshTokenService(RefreshTokenRepository repository, Clock clock, JwtProperties properties) {
         this.repository = repository;
         this.clock = clock;
-        this.refreshTtl = refreshTtl;
+        this.refreshTtl = properties.refreshTtl();
     }
 
     public String issue(Long userId) {
