@@ -14,11 +14,6 @@ spring:
       enabled: true
 
 server:
-  servlet:
-    session:
-      cookie:
-        http-only: true
-        same-site: lax
   error:
     include-message: never
     include-stacktrace: never
@@ -50,4 +45,4 @@ auth:
     enabled: ${KAKAO_LOGIN_ENABLED:false}
     client-id: ${KAKAO_CLIENT_ID:}
     client-secret: ${KAKAO_CLIENT_SECRET:}
-    redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8080/auth/kakao/callback}
+    redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:3000/auth/kakao/callback}
