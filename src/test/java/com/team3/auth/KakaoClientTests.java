@@ -22,18 +22,16 @@ import org.springframework.web.server.ResponseStatusException;
 class KakaoClientTests {
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-    private final KakaoClient client = new KakaoClient(builder.build(), "app", "secret",
-        "https://api.test/auth/kakao/callback");
+    private final KakaoClient client = new KakaoClient(builder.build(), new KakaoProperties(true, "app", "secret",
+        "https://frontend.test/auth/kakao/callback"));
 
     @Test
     void exchangesEncodedCodeAndUsesBearerTokenToGetIdentity() {
-        assertThat(client.authorizationUri("state").toString()).contains("response_type=code", "state=state",
-            "client_id=app");
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("client_id", "app");
         form.add("client_secret", "secret");
-        form.add("redirect_uri", "https://api.test/auth/kakao/callback");
+        form.add("redirect_uri", "https://frontend.test/auth/kakao/callback");
         form.add("code", "code+&=");
         server.expect(requestTo("https://kauth.kakao.com/oauth/token")).andExpect(method(HttpMethod.POST))
             .andExpect(content().formData(form)).andRespond(

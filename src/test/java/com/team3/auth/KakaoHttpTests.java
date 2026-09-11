@@ -5,17 +5,21 @@ import com.team3.user.Provider;
 import com.team3.user.UserRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.net.URI;
-import java.time.Clock;
-import java.time.Instant;
 import java.util.Optional;
 import static org.mockito.Mockito.mock;
 
@@ -24,7 +28,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -50,62 +53,80 @@ class KakaoHttpTests {
     private UserRepository users;
     @MockitoBean
     private RefreshTokenRepository refreshTokens;
-    @MockitoBean
-    private Clock clock;
 
     @Test
-    void logsInWithInternalSubjectAndRejectsCallbackReplay() throws Exception {
-        MockHttpSession session = start();
-        String state = state(session);
+    void exchangesCodeWithoutSessionOrCookies() throws Exception {
         Long id = 42L;
         when(kakao.userId("code")).thenReturn(123L);
         User user = mock(User.class);
         when(user.id()).thenReturn(id);
         when(users.findByProviderAndProviderId(Provider.KAKAO, "123")).thenReturn(Optional.of(user));
-        MvcResult result = mvc.perform(get("/auth/kakao/callback").session(session)
-            .param("state", state).param("code", "code"))
-            .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+        MvcResult result = mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"code\":\"code\"}"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
             .andExpect(header().string("Referrer-Policy", "no-referrer"))
-            .andExpect(jsonPath("$.refreshToken").isString()).andExpect(jsonPath("$.expiresIn").value(900))
+            .andExpect(jsonPath("$.data.isNewUser").value(false))
+            .andExpect(jsonPath("$.data.refreshToken").isString())
+            .andExpect(jsonPath("$.data.expiresIn").doesNotExist())
             .andReturn();
-        String access = json.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();
+        String access = json.readTree(result.getResponse().getContentAsString()).get("data").get("accessToken")
+            .asText();
         assertThat(decoder.decode(access).getSubject()).isEqualTo(id.toString());
-        mvc.perform(get("/auth/kakao/callback").session(session).param("state", state).param("code", "code"))
-            .andExpect(status().isBadRequest());
+        assertThat(result.getRequest().getSession(false)).isNull();
+        assertThat(result.getResponse().getHeader("Set-Cookie")).isNull();
+        verify(users, never()).saveAndFlush(any(User.class));
     }
 
     @Test
-    void rejectsMissingWrongExpiredStateAndDeniedOrMissingCode() throws Exception {
-        mvc.perform(get("/auth/kakao/callback").param("state", "unknown").param("code", "code"))
+    void returnsNewUserWhenRegistrationSucceeds() throws Exception {
+        when(kakao.userId("code")).thenReturn(123L);
+        User user = mock(User.class);
+        when(user.id()).thenReturn(42L);
+        when(users.saveAndFlush(any(User.class))).thenReturn(user);
+        MvcResult result = mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"code\":\"code\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.isNewUser").value(true))
+            .andExpect(jsonPath("$.data.refreshToken").isString())
+            .andReturn();
+        String access = json.readTree(result.getResponse().getContentAsString()).get("data").get("accessToken")
+            .asText();
+        assertThat(decoder.decode(access).getSubject()).isEqualTo("42");
+        verify(users).saveAndFlush(any(User.class));
+    }
+
+    @Test
+    void rejectsMissingBlankOversizedAndMalformedCode() throws Exception {
+        for (String body : new String[]{"{}", "{\"code\":null}", "{\"code\":\" \"}",
+                "{\"code\":\"" + "a".repeat(2049) + "\"}"}) {
+            mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("code"))
+                .andExpect(jsonPath("$.errors[0].message").isString())
+                .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist());
+        }
+        mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON).content("{"))
             .andExpect(status().isBadRequest());
-        MockHttpSession wrong = start();
-        mvc.perform(get("/auth/kakao/callback").session(wrong).param("state", "wrong").param("code", "code"))
-            .andExpect(status().isBadRequest());
-        MockHttpSession expired = start();
-        String expiredState = state(expired);
-        when(clock.instant()).thenReturn(Instant.now().plusSeconds(301));
-        mvc.perform(get("/auth/kakao/callback").session(expired).param("state", expiredState).param("code", "code"))
-            .andExpect(status().isBadRequest());
-        MockHttpSession denied = start();
-        mvc.perform(get("/auth/kakao/callback").session(denied).param("state", state(denied))
-            .param("error", "access_denied").param("error_description", "sensitive"))
-            .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.detail").value("Kakao login denied."));
-        MockHttpSession missingCode = start();
-        mvc.perform(get("/auth/kakao/callback").session(missingCode).param("state", state(missingCode)))
-            .andExpect(status().isBadRequest());
+        verifyNoInteractions(kakao, users, refreshTokens);
+    }
+
+    @Test
+    void preservesProviderFailureStatusWithoutIssuingTokens() throws Exception {
+        for (HttpStatus status : new HttpStatus[]{HttpStatus.UNAUTHORIZED, HttpStatus.BAD_GATEWAY}) {
+            doThrow(new ResponseStatusException(status, "Kakao login failed.")).when(kakao).userId("code");
+            mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"code\"}"))
+                .andExpect(status().is(status.value()))
+                .andExpect(header().doesNotExist("Set-Cookie"));
+        }
         verifyNoInteractions(users, refreshTokens);
     }
 
-    private MockHttpSession start() throws Exception {
-        when(clock.instant()).thenReturn(Instant.now());
-        when(kakao.authorizationUri(anyString())).thenAnswer(call -> URI.create("https://kauth.kakao.com/?state="
-            + call.getArgument(0)));
-        return (MockHttpSession) mvc.perform(get("/auth/kakao")).andExpect(status().isFound())
-            .andExpect(header().string("Cache-Control", "no-store")).andReturn().getRequest().getSession(false);
-    }
-
-    private String state(MockHttpSession session) throws Exception {
-        Object stored = session.getAttribute(AuthController.class.getName() + ".state");
-        return json.valueToTree(stored).get("value").asText();
+    @Test
+    void noLongerExposesBrowserLoginOrCallback() throws Exception {
+        mvc.perform(get("/auth/kakao")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/auth/kakao/callback").param("code", "code"))
+            .andExpect(status().isUnauthorized());
+        verifyNoInteractions(kakao, users, refreshTokens);
     }
 }

@@ -6,6 +6,7 @@ import com.team3.user.UserRepository;
 
 import com.team3.auth.jwt.JwtProvider;
 import com.team3.auth.jwt.JwtConfig;
+import com.team3.auth.jwt.JwtProperties;
 import com.team3.auth.token.RefreshTokenService;
 import com.team3.auth.token.RefreshToken;
 import com.team3.auth.token.RefreshTokenRepository;
@@ -55,8 +56,8 @@ class AuthServiceTests {
 
     @BeforeEach
     void setUp() {
-        SecretKey key = config.jwtKey(SECRET);
-        decoder = config.jwtDecoder(key, "backend");
+        SecretKey key = config.jwtKey(properties(SECRET, "backend"));
+        decoder = config.jwtDecoder(key, properties(SECRET, "backend"));
         service = service(clock);
     }
 
@@ -66,7 +67,6 @@ class AuthServiceTests {
         Jwt jwt = decoder.decode(pair.accessToken());
         assertThat(jwt.getSubject()).isEqualTo("1");
         assertThat(Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt())).isEqualTo(Duration.ofMinutes(15));
-        assertThat(pair.expiresIn()).isEqualTo(900);
         assertThat(pair.refreshToken()).matches("[A-Za-z0-9_-]{43}");
         ArgumentCaptor<RefreshToken> saved = ArgumentCaptor.forClass(RefreshToken.class);
         verify(repository).save(saved.capture());
@@ -136,15 +136,17 @@ class AuthServiceTests {
             .isInstanceOf(JwtException.class);
         String access = service.issue(1L).accessToken();
         JwtDecoder wrongKey = config.jwtDecoder(config.jwtKey(
-            "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="), "backend");
+            properties("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=", "backend")), properties(SECRET, "backend"));
         assertThatThrownBy(() -> wrongKey.decode(access)).isInstanceOf(JwtException.class);
-        JwtDecoder wrongIssuer = config.jwtDecoder(config.jwtKey(SECRET), "other");
+        JwtDecoder wrongIssuer = config.jwtDecoder(config.jwtKey(properties(SECRET, "backend")),
+            properties(SECRET, "other"));
         assertThatThrownBy(() -> wrongIssuer.decode(access)).isInstanceOf(JwtException.class);
     }
 
     @Test
     void rejectsWeakKeysAndInvalidUserIds() {
-        assertThatThrownBy(() -> config.jwtKey("YWJj")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> config.jwtKey(properties("YWJj", "backend")))
+            .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.issue(null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.issue(0L)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.issue(-1L)).isInstanceOf(IllegalArgumentException.class);
@@ -156,7 +158,8 @@ class AuthServiceTests {
         User user = mock(User.class);
         when(user.id()).thenReturn(id);
         when(users.saveAndFlush(any(User.class))).thenReturn(user);
-        assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123")).isEqualTo(id);
+        assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123"))
+            .isEqualTo(new AuthService.UserResult(id, true));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(users).saveAndFlush(saved.capture());
@@ -167,15 +170,20 @@ class AuthServiceTests {
         when(users.saveAndFlush(any(User.class))).thenThrow(conflict);
         when(users.findByProviderAndProviderId(Provider.KAKAO, "external:def-456")).thenReturn(Optional.empty())
             .thenReturn(Optional.of(user));
-        assertThat(service.findOrCreateUser(Provider.KAKAO, "external:def-456")).isEqualTo(id);
+        assertThat(service.findOrCreateUser(Provider.KAKAO, "external:def-456"))
+            .isEqualTo(new AuthService.UserResult(id, false));
         assertThatThrownBy(() -> service.findOrCreateUser(Provider.KAKAO, "external:ghi-789")).isSameAs(conflict);
     }
 
     private AuthService service(Clock tokenClock) {
-        return new AuthService(new RefreshTokenService(repository, tokenClock,
-            Duration.ofMinutes(15), Duration.ofDays(14)),
-            new JwtProvider(config.jwtEncoder(config.jwtKey(SECRET)), tokenClock, "backend", Duration.ofMinutes(15)),
+        return new AuthService(new RefreshTokenService(repository, tokenClock, properties(SECRET, "backend")),
+            new JwtProvider(config.jwtEncoder(config.jwtKey(properties(SECRET, "backend"))), tokenClock,
+                properties(SECRET, "backend")),
             users);
+    }
+
+    private JwtProperties properties(String secret, String issuer) {
+        return new JwtProperties(secret, issuer, Duration.ofMinutes(15), Duration.ofDays(14));
     }
 
     private void assertUnauthorized(Runnable action) {

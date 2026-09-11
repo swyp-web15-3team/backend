@@ -52,10 +52,11 @@ class TokenHttpTests {
 
     @Test
     void disabledKakaoLoginDoesNotCreateSession() throws Exception {
-        MvcResult result = mvc.perform(get("/auth/kakao"))
+        MvcResult result = mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"code\":\"code\"}"))
             .andExpect(status().isNotFound()).andReturn();
         assertThat(result.getRequest().getSession(false)).isNull();
-        mvc.perform(get("/auth/kakao/callback")).andExpect(status().isNotFound());
+        assertThat(result.getResponse().getHeader("Set-Cookie")).isNull();
     }
 
     @Test
@@ -73,20 +74,24 @@ class TokenHttpTests {
             new RefreshToken(1L, "hash", Instant.now().plusSeconds(3600))));
         mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
             .content("{\"refreshToken\":\"" + "a".repeat(43) + "\"}"))
-            .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
-            .andExpect(jsonPath("$.accessToken").isString())
-            .andExpect(jsonPath("$.refreshToken").isString()).andExpect(jsonPath("$.expiresIn").value(900));
+            .andExpect(status().isOk())
+            .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
+            .andExpect(jsonPath("$.accessToken").doesNotExist())
+            .andExpect(jsonPath("$.data.accessToken").isString())
+            .andExpect(jsonPath("$.data.refreshToken").isString())
+            .andExpect(jsonPath("$.data.expiresIn").doesNotExist());
     }
 
     @Test
     void invalidRequestsReturnClientErrorsAndLogoutIsIdempotent() throws Exception {
         mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.data").doesNotExist());
         String body = "{\"refreshToken\":\"" + "a".repeat(43) + "\"}";
         mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isUnauthorized());
         mvc.perform(post("/auth/logout").contentType(MediaType.APPLICATION_JSON).content(body))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isNoContent()).andExpect(content().string(""));
     }
 
     @RestController
