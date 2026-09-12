@@ -1,9 +1,13 @@
 package com.team3;
 
+import com.team3.auth.KakaoProperties;
+import com.team3.auth.jwt.JwtProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @SpringBootApplication
+@EnableConfigurationProperties({JwtProperties.class, KakaoProperties.class})
 public class BackendApplication {
 
     public static void main(String[] args) {
