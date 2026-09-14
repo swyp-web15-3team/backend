@@ -3,6 +3,12 @@ package com.team3.auth;
 import com.team3.user.User;
 import com.team3.user.Provider;
 import com.team3.user.UserRepository;
+import com.team3.whisky.PriceHistoryRepository;
+import com.team3.whisky.WhiskyCategoryRepository;
+import com.team3.collection.CollectionRepository;
+import com.team3.whisky.WhiskyOriginRepository;
+import com.team3.whisky.WhiskyRegionRepository;
+import com.team3.whisky.WhiskyRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -53,6 +59,19 @@ class KakaoHttpTests {
     private UserRepository users;
     @MockitoBean
     private RefreshTokenRepository refreshTokens;
+    @MockitoBean
+    private WhiskyCategoryRepository whiskyCategories;
+    @MockitoBean
+    private WhiskyRepository whiskies;
+
+    @MockitoBean
+    private CollectionRepository collections;
+    @MockitoBean
+    private PriceHistoryRepository priceHistories;
+    @MockitoBean
+    private WhiskyOriginRepository whiskyOrigins;
+    @MockitoBean
+    private WhiskyRegionRepository whiskyRegions;
 
     @Test
     void exchangesCodeWithoutSessionOrCookies() throws Exception {
@@ -61,7 +80,7 @@ class KakaoHttpTests {
         User user = mock(User.class);
         when(user.id()).thenReturn(id);
         when(users.findByProviderAndProviderId(Provider.KAKAO, "123")).thenReturn(Optional.of(user));
-        MvcResult result = mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+        MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
             .content("{\"code\":\"code\"}"))
             .andExpect(status().isOk())
             .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
@@ -84,7 +103,7 @@ class KakaoHttpTests {
         User user = mock(User.class);
         when(user.id()).thenReturn(42L);
         when(users.saveAndFlush(any(User.class))).thenReturn(user);
-        MvcResult result = mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+        MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
             .content("{\"code\":\"code\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.isNewUser").value(true))
@@ -100,12 +119,12 @@ class KakaoHttpTests {
     void rejectsMissingBlankOversizedAndMalformedCode() throws Exception {
         for (String body : new String[]{"{}", "{\"code\":null}", "{\"code\":\" \"}",
                 "{\"code\":\"" + "a".repeat(2049) + "\"}"}) {
-            mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON).content(body))
+            mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("code"))
                 .andExpect(jsonPath("$.errors[0].message").isString())
                 .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist());
         }
-        mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON).content("{"))
+        mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON).content("{"))
             .andExpect(status().isBadRequest());
         verifyNoInteractions(kakao, users, refreshTokens);
     }
@@ -114,7 +133,7 @@ class KakaoHttpTests {
     void preservesProviderFailureStatusWithoutIssuingTokens() throws Exception {
         for (HttpStatus status : new HttpStatus[]{HttpStatus.UNAUTHORIZED, HttpStatus.BAD_GATEWAY}) {
             doThrow(new ResponseStatusException(status, "Kakao login failed.")).when(kakao).userId("code");
-            mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+            mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"code\":\"code\"}"))
                 .andExpect(status().is(status.value()))
                 .andExpect(header().doesNotExist("Set-Cookie"));
@@ -124,8 +143,8 @@ class KakaoHttpTests {
 
     @Test
     void noLongerExposesBrowserLoginOrCallback() throws Exception {
-        mvc.perform(get("/auth/kakao")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/auth/kakao/callback").param("code", "code"))
+        mvc.perform(get("/api/v1/auth/kakao")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/auth/kakao/callback").param("code", "code"))
             .andExpect(status().isUnauthorized());
         verifyNoInteractions(kakao, users, refreshTokens);
     }
