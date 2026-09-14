@@ -21,8 +21,9 @@ public class SecurityConfig {
             .headers(headers -> headers.referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER)))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> {
-                auth.requestMatchers(HttpMethod.POST, "/auth/kakao", "/auth/refresh", "/auth/logout").permitAll();
-                auth.requestMatchers("/actuator/health", "/error").permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/kakao", "/api/v1/auth/refresh",
+                    "/api/v1/auth/logout").permitAll();
+                auth.requestMatchers("/api/v1/actuator/health", "/api/v1/error").permitAll();
                 if (docsEnabled) {
                     auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
                 }
