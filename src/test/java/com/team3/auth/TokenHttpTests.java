@@ -52,7 +52,7 @@ class TokenHttpTests {
 
     @Test
     void disabledKakaoLoginDoesNotCreateSession() throws Exception {
-        MvcResult result = mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+        MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
             .content("{\"code\":\"code\"}"))
             .andExpect(status().isNotFound()).andReturn();
         assertThat(result.getRequest().getSession(false)).isNull();
@@ -61,10 +61,10 @@ class TokenHttpTests {
 
     @Test
     void protectedEndpointRequiresValidBearerToken() throws Exception {
-        mvc.perform(get("/test/me")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/test/me").header("Authorization", "Bearer invalid"))
+        mvc.perform(get("/api/v1/test/me")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/test/me").header("Authorization", "Bearer invalid"))
             .andExpect(status().isUnauthorized());
-        mvc.perform(get("/test/me").header("Authorization", "Bearer " + tokens.issue(1L).accessToken()))
+        mvc.perform(get("/api/v1/test/me").header("Authorization", "Bearer " + tokens.issue(1L).accessToken()))
             .andExpect(status().isOk()).andExpect(content().string("1"));
     }
 
@@ -72,7 +72,7 @@ class TokenHttpTests {
     void refreshWorksWithoutAccessTokenAndDoesNotCacheTokens() throws Exception {
         when(repository.findByTokenHash(anyString())).thenReturn(Optional.of(
             new RefreshToken(1L, "hash", Instant.now().plusSeconds(3600))));
-        mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
             .content("{\"refreshToken\":\"" + "a".repeat(43) + "\"}"))
             .andExpect(status().isOk())
             .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
@@ -84,19 +84,19 @@ class TokenHttpTests {
 
     @Test
     void invalidRequestsReturnClientErrorsAndLogoutIsIdempotent() throws Exception {
-        mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400))
             .andExpect(jsonPath("$.data").doesNotExist());
         String body = "{\"refreshToken\":\"" + "a".repeat(43) + "\"}";
-        mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isUnauthorized());
-        mvc.perform(post("/auth/logout").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isNoContent()).andExpect(content().string(""));
     }
 
     @RestController
     static class ProtectedEndpoint {
-        @GetMapping("/test/me")
+        @GetMapping("/api/v1/test/me")
         String me(Authentication authentication) {
             return authentication.getName();
         }
