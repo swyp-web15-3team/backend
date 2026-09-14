@@ -1,11 +1,14 @@
 package com.team3.auth;
 
 import com.team3.user.UserRepository;
+import com.team3.whisky.WhiskyCategoryRepository;
+import com.team3.whisky.WhiskyRepository;
 
 import com.team3.auth.token.RefreshToken;
 import com.team3.auth.token.RefreshTokenRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -23,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -50,9 +54,15 @@ class TokenHttpTests {
     @MockitoBean
     private UserRepository users;
 
+    @MockitoBean
+    private WhiskyCategoryRepository whiskyCategories;
+
+    @MockitoBean
+    private WhiskyRepository whiskies;
+
     @Test
     void disabledKakaoLoginDoesNotCreateSession() throws Exception {
-        MvcResult result = mvc.perform(post("/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+        MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
             .content("{\"code\":\"code\"}"))
             .andExpect(status().isNotFound()).andReturn();
         assertThat(result.getRequest().getSession(false)).isNull();
@@ -61,10 +71,22 @@ class TokenHttpTests {
 
     @Test
     void protectedEndpointRequiresValidBearerToken() throws Exception {
-        mvc.perform(get("/test/me")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/test/me").header("Authorization", "Bearer invalid"))
-            .andExpect(status().isUnauthorized());
-        mvc.perform(get("/test/me").header("Authorization", "Bearer " + tokens.issue(1L).accessToken()))
+        mvc.perform(get("/api/v1/test/me"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Bearer")))
+            .andExpect(jsonPath("$.title").value("Unauthorized"))
+            .andExpect(jsonPath("$.status").value(401))
+            .andExpect(jsonPath("$.detail").value("인증이 필요합니다."))
+            .andExpect(jsonPath("$.instance").value("/api/v1/test/me"))
+            .andExpect(jsonPath("$.code").value("AUTH_001"));
+        mvc.perform(get("/api/v1/test/me").header("Authorization", "Bearer invalid"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Bearer")))
+            .andExpect(jsonPath("$.status").value(401))
+            .andExpect(jsonPath("$.code").value("AUTH_001"));
+        mvc.perform(get("/api/v1/test/me").header("Authorization", "Bearer " + tokens.issue(1L).accessToken()))
             .andExpect(status().isOk()).andExpect(content().string("1"));
     }
 
@@ -72,7 +94,7 @@ class TokenHttpTests {
     void refreshWorksWithoutAccessTokenAndDoesNotCacheTokens() throws Exception {
         when(repository.findByTokenHash(anyString())).thenReturn(Optional.of(
             new RefreshToken(1L, "hash", Instant.now().plusSeconds(3600))));
-        mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
             .content("{\"refreshToken\":\"" + "a".repeat(43) + "\"}"))
             .andExpect(status().isOk())
             .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
@@ -84,19 +106,19 @@ class TokenHttpTests {
 
     @Test
     void invalidRequestsReturnClientErrorsAndLogoutIsIdempotent() throws Exception {
-        mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400))
             .andExpect(jsonPath("$.data").doesNotExist());
         String body = "{\"refreshToken\":\"" + "a".repeat(43) + "\"}";
-        mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isUnauthorized());
-        mvc.perform(post("/auth/logout").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isNoContent()).andExpect(content().string(""));
     }
 
     @RestController
     static class ProtectedEndpoint {
-        @GetMapping("/test/me")
+        @GetMapping("/api/v1/test/me")
         String me(Authentication authentication) {
             return authentication.getName();
         }
