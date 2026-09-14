@@ -3,6 +3,7 @@ package com.team3.auth;
 import com.team3.user.User;
 import com.team3.user.Provider;
 import com.team3.user.UserRepository;
+import com.team3.whisky.WhiskyCategoryRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -53,6 +54,8 @@ class KakaoHttpTests {
     private UserRepository users;
     @MockitoBean
     private RefreshTokenRepository refreshTokens;
+    @MockitoBean
+    private WhiskyCategoryRepository whiskyCategories;
 
     @Test
     void exchangesCodeWithoutSessionOrCookies() throws Exception {
