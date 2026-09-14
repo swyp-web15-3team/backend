@@ -67,7 +67,7 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           docker buildx imagetools create -t "$image:$GITHUB_SHA" -t "$image:latest" \
             "$image:$GITHUB_SHA-amd64" "$image:$GITHUB_SHA-arm64"
-          echo "image=$image:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "image=$image:latest" >> "$GITHUB_OUTPUT"
 
   deploy:
     needs: merge-manifest
