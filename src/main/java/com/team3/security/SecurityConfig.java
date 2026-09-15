@@ -23,7 +23,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/kakao", "/api/v1/auth/refresh",
                     "/api/v1/auth/logout").permitAll();
-                auth.requestMatchers(HttpMethod.GET, "/api/v1/whisky-categories").permitAll();
+                auth.requestMatchers(HttpMethod.GET, "/api/v1/whisky-categories", "/api/v1/whiskies/suggestions")
+                    .permitAll();
                 auth.requestMatchers("/api/v1/actuator/health", "/api/v1/error").permitAll();
                 if (docsEnabled) {
                     auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
