@@ -6,6 +6,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.team3.auth.token.RefreshTokenRepository;
 import com.team3.user.UserRepository;
+import com.team3.whisky.WhiskyCategoryRepository;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude="
@@ -20,6 +21,9 @@ class BackendApplicationTests {
 
     @MockitoBean
     private UserRepository users;
+
+    @MockitoBean
+    private WhiskyCategoryRepository whiskyCategories;
 
     @Test
     void contextLoads() {
