@@ -7,11 +7,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.util.List;
 
 import com.team3.security.SecurityConfig;
 
@@ -23,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -72,10 +75,51 @@ class CollectionHttpTests {
     }
 
     @Test
+    void returnsAuthenticatedUsersCollectionsInRepositoryOrder() throws Exception {
+        Collection latest = collection(13L, "이번 주말");
+        Collection older = collection(12L, "선물 후보");
+        Sort defaultSort = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
+        when(collections.findAllByUserId(42L, defaultSort)).thenReturn(List.of(latest, older));
+
+        mvc.perform(get("/api/v1/collections").header("Authorization", "Bearer access-token"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.collections.length()").value(2))
+            .andExpect(jsonPath("$.data.collections[0].id").value(13))
+            .andExpect(jsonPath("$.data.collections[0].name").value("이번 주말"))
+            .andExpect(jsonPath("$.data.collections[1].id").value(12))
+            .andExpect(jsonPath("$.data.collections[1].name").value("선물 후보"));
+
+        verify(collections).findAllByUserId(42L, defaultSort);
+    }
+
+    @Test
+    void usesRequestedCollectionSort() throws Exception {
+        Sort requestedSort = Sort.by(Sort.Order.asc("name"));
+        when(collections.findAllByUserId(42L, requestedSort)).thenReturn(List.of());
+
+        mvc.perform(get("/api/v1/collections").header("Authorization", "Bearer access-token")
+            .param("sort", "name,asc"))
+            .andExpect(status().isOk());
+
+        verify(collections).findAllByUserId(42L, requestedSort);
+    }
+
+    @Test
+    void returnsEmptyCollectionsWhenNoneExist() throws Exception {
+        mvc.perform(get("/api/v1/collections").header("Authorization", "Bearer access-token"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.collections").isEmpty());
+    }
+
+    @Test
     void requiresAuthentication() throws Exception {
         mvc.perform(post("/api/v1/collections").contentType(MediaType.APPLICATION_JSON)
             .content("{\"name\":\"선물 후보\"}"))
             .andExpect(status().isUnauthorized());
+
+        mvc.perform(get("/api/v1/collections"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("AUTH_001"));
     }
 
     @Test
@@ -127,5 +171,12 @@ class CollectionHttpTests {
         when(collections.saveAndFlush(any(Collection.class))).thenThrow(violation);
 
         assertThatThrownBy(() -> collectionService.createCollection(42L, "선물 후보")).isSameAs(violation);
+    }
+
+    private Collection collection(Long id, String name) {
+        Collection collection = mock(Collection.class);
+        when(collection.id()).thenReturn(id);
+        when(collection.name()).thenReturn(name);
+        return collection;
     }
 }

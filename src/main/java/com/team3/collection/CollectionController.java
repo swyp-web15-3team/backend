@@ -1,13 +1,17 @@
 package com.team3.collection;
 
 import com.team3.collection.dto.CollectionResponse;
+import com.team3.collection.dto.CollectionsResponse;
 import com.team3.collection.dto.CreateCollectionRequest;
 import com.team3.common.ApiResponse;
 
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,5 +35,12 @@ public class CollectionController {
         @Valid @RequestBody CreateCollectionRequest request) {
         CollectionResponse response = collections.createCollection(Long.valueOf(jwt.getSubject()), request.name());
         return ApiResponse.of(response);
+    }
+
+    @GetMapping
+    public ApiResponse<CollectionsResponse> getCollections(
+        @AuthenticationPrincipal Jwt jwt,
+        @SortDefault(sort = {"createdAt", "id"}, direction = Sort.Direction.DESC) Sort sort) {
+        return ApiResponse.of(collections.getCollections(Long.valueOf(jwt.getSubject()), sort));
     }
 }
