@@ -27,6 +27,9 @@ public class Collection {
     @Column(nullable = false, length = 50)
     private String name;
 
+    @Column(name = "is_default", nullable = false)
+    private boolean isDefault;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -48,6 +51,7 @@ public class Collection {
         }
         this.userId = userId;
         this.name = normalizedName;
+        this.isDefault = false;
     }
 
     public Long id() {
@@ -60,5 +64,17 @@ public class Collection {
 
     public String name() {
         return name;
+    }
+
+    public boolean isDefault() {
+        return isDefault;
+    }
+
+    public void updateName(String name) {
+        String normalizedName = name == null ? null : name.strip();
+        if (normalizedName == null || normalizedName.isEmpty() || normalizedName.length() > 50) {
+            throw new IllegalArgumentException("관심 그룹 이름은 1자 이상 50자 이하여야 합니다.");
+        }
+        this.name = normalizedName;
     }
 }

@@ -3,17 +3,20 @@ package com.team3.collection;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import com.team3.security.SecurityConfig;
 
@@ -66,7 +69,8 @@ class CollectionHttpTests {
             .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  선물 후보  \"}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.id").value(12))
-            .andExpect(jsonPath("$.data.name").value("선물 후보"));
+            .andExpect(jsonPath("$.data.name").value("선물 후보"))
+            .andExpect(jsonPath("$.data.isDefault").value(false));
 
         ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
         verify(collections).saveAndFlush(captor.capture());
@@ -86,6 +90,7 @@ class CollectionHttpTests {
             .andExpect(jsonPath("$.data.collections.length()").value(2))
             .andExpect(jsonPath("$.data.collections[0].id").value(13))
             .andExpect(jsonPath("$.data.collections[0].name").value("이번 주말"))
+            .andExpect(jsonPath("$.data.collections[0].isDefault").value(false))
             .andExpect(jsonPath("$.data.collections[1].id").value(12))
             .andExpect(jsonPath("$.data.collections[1].name").value("선물 후보"));
 
@@ -112,6 +117,85 @@ class CollectionHttpTests {
     }
 
     @Test
+    void updatesOwnedCollectionWithNormalizedName() throws Exception {
+        Collection collection = collection(12L, "새 이름");
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
+
+        mvc.perform(patch("/api/v1/collections/12").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  새 이름  \"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.id").value(12))
+            .andExpect(jsonPath("$.data.name").value("새 이름"))
+            .andExpect(jsonPath("$.data.isDefault").value(false));
+
+        verify(collection).updateName("새 이름");
+        verify(collections).flush();
+    }
+
+    @Test
+    void normalizesNameWhenUpdatingCollectionEntity() {
+        Collection collection = new Collection(42L, "기존 이름");
+
+        collection.updateName("  새 이름  ");
+
+        assertThat(collection.name()).isEqualTo("새 이름");
+    }
+
+    @Test
+    void returnsNotFoundWhenCollectionIsMissingOrNotOwned() throws Exception {
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.empty());
+
+        mvc.perform(patch("/api/v1/collections/12").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"새 이름\"}"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("COLLECTION_002"));
+
+        verify(collections, never()).flush();
+    }
+
+    @Test
+    void rejectsUpdatingDefaultCollection() throws Exception {
+        Collection collection = collection(12L, "기본", true);
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
+
+        mvc.perform(patch("/api/v1/collections/12").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"새 이름\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("COLLECTION_003"));
+
+        verify(collections, never()).flush();
+    }
+
+    @Test
+    void returnsConflictWhenUpdatedNameAlreadyExists() throws Exception {
+        Collection collection = collection(12L, "새 이름");
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
+        when(collections.existsByUserIdAndNameAndIdNot(42L, "새 이름", 12L)).thenReturn(true);
+
+        mvc.perform(patch("/api/v1/collections/12").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"새 이름\"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("COLLECTION_001"));
+
+        verify(collections, never()).flush();
+    }
+
+    @Test
+    void returnsConflictWhenConcurrentUpdateViolatesUniqueConstraint() throws Exception {
+        Collection collection = collection(12L, "새 이름");
+        ConstraintViolationException violation = mock(ConstraintViolationException.class);
+        when(violation.getConstraintName()).thenReturn("uk_collections_user_name");
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
+        doThrow(new DataIntegrityViolationException("duplicate", violation))
+            .when(collections).flush();
+
+        mvc.perform(patch("/api/v1/collections/12").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"새 이름\"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("COLLECTION_001"));
+    }
+
+    @Test
     void requiresAuthentication() throws Exception {
         mvc.perform(post("/api/v1/collections").contentType(MediaType.APPLICATION_JSON)
             .content("{\"name\":\"선물 후보\"}"))
@@ -120,6 +204,10 @@ class CollectionHttpTests {
         mvc.perform(get("/api/v1/collections"))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("AUTH_001"));
+
+        mvc.perform(patch("/api/v1/collections/12").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"새 이름\"}"))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -135,6 +223,11 @@ class CollectionHttpTests {
             .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + "a".repeat(51) + "\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errors[0].message").value("관심 그룹 이름은 50자 이하여야 합니다."));
+
+        mvc.perform(patch("/api/v1/collections/12").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"   \"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors[0].field").value("name"));
     }
 
     @Test
@@ -174,9 +267,14 @@ class CollectionHttpTests {
     }
 
     private Collection collection(Long id, String name) {
+        return collection(id, name, false);
+    }
+
+    private Collection collection(Long id, String name, boolean isDefault) {
         Collection collection = mock(Collection.class);
         when(collection.id()).thenReturn(id);
         when(collection.name()).thenReturn(name);
+        when(collection.isDefault()).thenReturn(isDefault);
         return collection;
     }
 }
