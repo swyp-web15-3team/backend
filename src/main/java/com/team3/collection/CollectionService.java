@@ -70,6 +70,15 @@ public class CollectionService {
         }
     }
 
+    public void deleteCollection(Long userId, Long collectionId) {
+        Collection collection = collections.findByIdAndUserId(collectionId, userId)
+            .orElseThrow(CollectionNotFoundException::new);
+        if (collection.isDefault()) {
+            throw new DefaultCollectionImmutableException();
+        }
+        collections.delete(collection);
+    }
+
     private boolean isNameConflict(Throwable exception) {
         Throwable cause = exception;
         while (cause != null) {

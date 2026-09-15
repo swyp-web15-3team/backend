@@ -8,11 +8,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 import java.time.Instant;
 import java.util.List;
@@ -164,6 +166,47 @@ class CollectionHttpTests {
             .andExpect(jsonPath("$.code").value("COLLECTION_003"));
 
         verify(collections, never()).flush();
+    }
+
+    @Test
+    void deletesOwnedNonDefaultCollection() throws Exception {
+        Collection collection = collection(12L, "선물 후보");
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
+
+        mvc.perform(delete("/api/v1/collections/12").header("Authorization", "Bearer access-token"))
+            .andExpect(status().isNoContent())
+            .andExpect(content().string(""));
+
+        verify(collections).delete(collection);
+    }
+
+    @Test
+    void returnsNotFoundWhenDeletingCollectionIsMissingOrNotOwned() throws Exception {
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.empty());
+
+        mvc.perform(delete("/api/v1/collections/12").header("Authorization", "Bearer access-token"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("COLLECTION_002"));
+
+        verify(collections, never()).delete(any(Collection.class));
+    }
+
+    @Test
+    void rejectsDeletingDefaultCollection() throws Exception {
+        Collection collection = collection(12L, "기본", true);
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
+
+        mvc.perform(delete("/api/v1/collections/12").header("Authorization", "Bearer access-token"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("COLLECTION_003"));
+
+        verify(collections, never()).delete(any(Collection.class));
+    }
+
+    @Test
+    void requiresAuthenticationToDeleteCollection() throws Exception {
+        mvc.perform(delete("/api/v1/collections/12"))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test
