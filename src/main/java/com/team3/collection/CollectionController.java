@@ -1,0 +1,35 @@
+package com.team3.collection;
+
+import com.team3.collection.dto.CollectionResponse;
+import com.team3.collection.dto.CreateCollectionRequest;
+import com.team3.common.ApiResponse;
+
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/collections")
+public class CollectionController {
+
+    private final CollectionService collections;
+
+    public CollectionController(CollectionService collections) {
+        this.collections = collections;
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<CollectionResponse> createCollection(
+        @AuthenticationPrincipal Jwt jwt,
+        @Valid @RequestBody CreateCollectionRequest request) {
+        CollectionResponse response = collections.createCollection(Long.valueOf(jwt.getSubject()), request.name());
+        return ApiResponse.of(response);
+    }
+}
