@@ -25,6 +25,10 @@ public class User {
     @Column(name = "provider_id", nullable = false, length = 255)
     private String providerId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private UserStatus status;
+
     protected User() {
     }
 
@@ -34,9 +38,18 @@ public class User {
         }
         this.provider = provider;
         this.providerId = providerId;
+        this.status = UserStatus.PENDING;
     }
 
     public Long id() {
         return id;
+    }
+
+    public boolean isPending() {
+        return status == UserStatus.PENDING;
+    }
+
+    public void activate() {
+        this.status = UserStatus.ACTIVE;
     }
 }

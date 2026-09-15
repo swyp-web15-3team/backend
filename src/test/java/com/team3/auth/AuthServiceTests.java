@@ -1,7 +1,10 @@
 package com.team3.auth;
 
+import com.team3.user.AgreementType;
 import com.team3.user.User;
 import com.team3.user.Provider;
+import com.team3.user.UserAgreement;
+import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 
 import com.team3.auth.jwt.JwtProvider;
@@ -12,6 +15,7 @@ import com.team3.auth.token.RefreshToken;
 import com.team3.auth.token.RefreshTokenRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -49,6 +53,7 @@ class AuthServiceTests {
     private static final String SECRET = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
     private final RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
     private final UserRepository users = mock(UserRepository.class);
+    private final UserAgreementRepository agreements = mock(UserAgreementRepository.class);
     private final JwtConfig config = new JwtConfig();
     private final Clock clock = Clock.systemUTC();
     private AuthService service;
@@ -157,6 +162,7 @@ class AuthServiceTests {
         Long id = 42L;
         User user = mock(User.class);
         when(user.id()).thenReturn(id);
+        when(user.isPending()).thenReturn(true);
         when(users.saveAndFlush(any(User.class))).thenReturn(user);
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123"))
             .isEqualTo(new AuthService.UserResult(id, true));
@@ -171,15 +177,46 @@ class AuthServiceTests {
         when(users.findByProviderAndProviderId(Provider.KAKAO, "external:def-456")).thenReturn(Optional.empty())
             .thenReturn(Optional.of(user));
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:def-456"))
-            .isEqualTo(new AuthService.UserResult(id, false));
+            .isEqualTo(new AuthService.UserResult(id, true));
         assertThatThrownBy(() -> service.findOrCreateUser(Provider.KAKAO, "external:ghi-789")).isSameAs(conflict);
+    }
+
+    @Test
+    void reportsExistingUserAsNewUntilSignUpCompletes() {
+        User pending = new User(Provider.KAKAO, "external:abc-123");
+        when(users.findByProviderAndProviderId(Provider.KAKAO, "external:abc-123")).thenReturn(Optional.of(pending));
+        assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isTrue();
+
+        when(users.findById(7L)).thenReturn(Optional.of(pending));
+        service.signUp(7L, true);
+        assertThat(pending.isPending()).isFalse();
+
+        ArgumentCaptor<List<UserAgreement>> saved = agreementsCaptor();
+        verify(agreements).saveAll(saved.capture());
+        assertThat(saved.getValue()).extracting(UserAgreement::type, UserAgreement::agreed).containsExactly(
+            tuple(AgreementType.TERMS_OF_SERVICE, true), tuple(AgreementType.PRIVACY_POLICY, true),
+            tuple(AgreementType.MARKETING, true));
+
+        assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isFalse();
+        assertThatThrownBy(() -> service.signUp(7L, true)).isInstanceOf(AlreadySignedUpException.class);
+    }
+
+    @Test
+    void rejectsSignUpForUnknownUser() {
+        when(users.findById(9L)).thenReturn(Optional.empty());
+        assertUnauthorized(() -> service.signUp(9L, false));
+    }
+
+    @SuppressWarnings("unchecked")
+    private ArgumentCaptor<List<UserAgreement>> agreementsCaptor() {
+        return ArgumentCaptor.forClass(List.class);
     }
 
     private AuthService service(Clock tokenClock) {
         return new AuthService(new RefreshTokenService(repository, tokenClock, properties(SECRET, "backend")),
             new JwtProvider(config.jwtEncoder(config.jwtKey(properties(SECRET, "backend"))), tokenClock,
                 properties(SECRET, "backend")),
-            users);
+            users, agreements);
     }
 
     private JwtProperties properties(String secret, String issuer) {

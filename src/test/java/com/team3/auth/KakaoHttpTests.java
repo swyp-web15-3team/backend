@@ -2,6 +2,7 @@ package com.team3.auth;
 
 import com.team3.user.User;
 import com.team3.user.Provider;
+import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -60,6 +62,12 @@ class KakaoHttpTests {
     private UserRepository users;
     @MockitoBean
     private RefreshTokenRepository refreshTokens;
+    @MockitoBean
+    private UserAgreementRepository agreements;
+
+    @MockitoBean
+    private JpaMetamodelMappingContext jpaMappingContext;
+
     @MockitoBean
     private WhiskyCategoryRepository whiskyCategories;
     @MockitoBean
@@ -106,6 +114,7 @@ class KakaoHttpTests {
         when(kakao.userId("code")).thenReturn(123L);
         User user = mock(User.class);
         when(user.id()).thenReturn(42L);
+        when(user.isPending()).thenReturn(true);
         when(users.saveAndFlush(any(User.class))).thenReturn(user);
         MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
             .content("{\"code\":\"code\"}"))

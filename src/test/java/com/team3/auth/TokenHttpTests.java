@@ -1,5 +1,6 @@
 package com.team3.auth;
 
+import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -58,6 +60,12 @@ class TokenHttpTests {
 
     @MockitoBean
     private UserRepository users;
+
+    @MockitoBean
+    private UserAgreementRepository agreements;
+
+    @MockitoBean
+    private JpaMetamodelMappingContext jpaMappingContext;
 
     @MockitoBean
     private WhiskyCategoryRepository whiskyCategories;
