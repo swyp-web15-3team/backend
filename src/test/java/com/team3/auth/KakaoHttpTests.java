@@ -73,6 +73,9 @@ class KakaoHttpTests {
     @MockitoBean
     private WhiskyRegionRepository whiskyRegions;
 
+    @MockitoBean
+    private CollectionRepository collections;
+
     @Test
     void exchangesCodeWithoutSessionOrCookies() throws Exception {
         Long id = 42L;
