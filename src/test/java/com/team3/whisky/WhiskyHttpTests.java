@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -21,6 +23,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(WhiskyController.class)
 @Import({SecurityConfig.class, WhiskyService.class})
 class WhiskyHttpTests {
+
+    private static final Limit SUGGESTION_LIMIT = Limit.of(10);
+    private static final Sort SUGGESTION_SORT = Sort.by("id").ascending();
 
     @Autowired
     private MockMvc mvc;
@@ -35,7 +40,7 @@ class WhiskyHttpTests {
     void returnsSuggestionsWithoutAuthentication() throws Exception {
         Whisky lagavulin = whisky(1L, "라가불린");
         Whisky lagavulin16 = whisky(2L, "라가불린 16");
-        when(whiskies.findTop10ByOrderByIdAsc()).thenReturn(List.of(lagavulin, lagavulin16));
+        when(whiskies.findAllBy(SUGGESTION_SORT, SUGGESTION_LIMIT)).thenReturn(List.of(lagavulin, lagavulin16));
 
         mvc.perform(get("/api/v1/whiskies/suggestions"))
             .andExpect(status().isOk())
@@ -47,7 +52,7 @@ class WhiskyHttpTests {
 
     @Test
     void returnsEmptySuggestionsWhenNoneExist() throws Exception {
-        when(whiskies.findTop10ByOrderByIdAsc()).thenReturn(List.of());
+        when(whiskies.findAllBy(SUGGESTION_SORT, SUGGESTION_LIMIT)).thenReturn(List.of());
 
         mvc.perform(get("/api/v1/whiskies/suggestions"))
             .andExpect(status().isOk())
@@ -57,7 +62,8 @@ class WhiskyHttpTests {
     @Test
     void returnsMatchingSuggestionsForQuery() throws Exception {
         Whisky lagavulin16 = whisky(1L, "라가불린 16");
-        when(whiskies.findTop10ByNameContainingOrderByIdAsc("라가")).thenReturn(List.of(lagavulin16));
+        when(whiskies.findByNameContaining("라가", SUGGESTION_SORT, SUGGESTION_LIMIT))
+            .thenReturn(List.of(lagavulin16));
 
         mvc.perform(get("/api/v1/whiskies/suggestions").param("query", " 라가 "))
             .andExpect(status().isOk())
