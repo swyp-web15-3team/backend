@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import com.team3.common.exception.CustomException;
+import com.team3.common.exception.ErrorCode;
+
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +44,14 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private Map<String, String> toValidationError(FieldError error) {
         String message = Objects.requireNonNullElse(error.getDefaultMessage(), "Invalid value.");
         return Map.of("field", error.getField(), "message", message);
+    }
+
+    @ExceptionHandler(CustomException.class)
+    public ResponseEntity<Object> handleCustomException(CustomException ex, WebRequest request) {
+        ErrorCode errorCode = ex.getErrorCode();
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(errorCode.getStatus(), errorCode.getMessage());
+        problem.setProperty("code", errorCode.getCode());
+        return handleExceptionInternal(ex, problem, new HttpHeaders(), errorCode.getStatus(), request);
     }
 
     @ExceptionHandler(Exception.class)

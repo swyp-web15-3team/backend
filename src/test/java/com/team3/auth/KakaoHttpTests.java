@@ -4,6 +4,7 @@ import com.team3.user.User;
 import com.team3.user.Provider;
 import com.team3.user.UserRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
+import com.team3.collection.CollectionRepository;
 import com.team3.whisky.WhiskyRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -59,6 +60,9 @@ class KakaoHttpTests {
     private WhiskyCategoryRepository whiskyCategories;
     @MockitoBean
     private WhiskyRepository whiskies;
+
+    @MockitoBean
+    private CollectionRepository collections;
 
     @Test
     void exchangesCodeWithoutSessionOrCookies() throws Exception {
