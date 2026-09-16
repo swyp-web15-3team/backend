@@ -34,6 +34,18 @@ class WhiskyHttpTests {
     private WhiskyRepository whiskies;
 
     @MockitoBean
+    private WhiskyCategoryRepository categories;
+
+    @MockitoBean
+    private WhiskyOriginRepository origins;
+
+    @MockitoBean
+    private WhiskyRegionRepository regions;
+
+    @MockitoBean
+    private PriceHistoryRepository prices;
+
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @Test
