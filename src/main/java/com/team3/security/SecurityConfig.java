@@ -1,5 +1,7 @@
 package com.team3.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +18,9 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
-        @Value("${springdoc.api-docs.enabled:false}") boolean docsEnabled) throws Exception {
+        @Value("${springdoc.api-docs.enabled:false}") boolean docsEnabled, ObjectMapper objectMapper)
+        throws Exception {
+        AuthEntryPoint authenticationEntryPoint = new AuthEntryPoint(objectMapper);
         http.csrf(AbstractHttpConfigurer::disable)
             .headers(headers -> headers.referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER)))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -25,13 +29,14 @@ public class SecurityConfig {
                     "/api/v1/auth/logout").permitAll();
                 auth.requestMatchers(HttpMethod.GET, "/api/v1/whisky-categories", "/api/v1/whiskies/suggestions")
                     .permitAll();
-                auth.requestMatchers("/api/v1/actuator/health", "/api/v1/error").permitAll();
+                auth.requestMatchers("/actuator/health", "/error").permitAll();
                 if (docsEnabled) {
                     auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
                 }
                 auth.anyRequest().authenticated();
             })
-            .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()));
+            .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults())
+                .authenticationEntryPoint(authenticationEntryPoint));
         return http.build();
     }
 }
