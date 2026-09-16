@@ -18,9 +18,9 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(WhiskySuggestionController.class)
+@WebMvcTest(WhiskyController.class)
 @Import({SecurityConfig.class, WhiskySuggestionService.class})
-class WhiskySuggestionHttpTests {
+class WhiskyHttpTests {
 
     @Autowired
     private MockMvc mvc;

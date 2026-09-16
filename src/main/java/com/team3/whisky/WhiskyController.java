@@ -8,11 +8,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class WhiskySuggestionController {
+public class WhiskyController {
 
     private final WhiskySuggestionService suggestions;
 
-    public WhiskySuggestionController(WhiskySuggestionService suggestions) {
+    public WhiskyController(WhiskySuggestionService suggestions) {
         this.suggestions = suggestions;
     }
 
