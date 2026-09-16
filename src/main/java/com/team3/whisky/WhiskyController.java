@@ -10,14 +10,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class WhiskyController {
 
-    private final WhiskySuggestionService suggestions;
+    private final WhiskyService whiskies;
 
-    public WhiskyController(WhiskySuggestionService suggestions) {
-        this.suggestions = suggestions;
+    public WhiskyController(WhiskyService whiskies) {
+        this.whiskies = whiskies;
     }
 
     @GetMapping("/api/v1/whiskies/suggestions")
     public ApiResponse<WhiskySuggestionsResponse> getSuggestions(@RequestParam(required = false) String query) {
-        return ApiResponse.of(suggestions.getSuggestions(query));
+        return ApiResponse.of(whiskies.getSuggestions(query));
     }
 }

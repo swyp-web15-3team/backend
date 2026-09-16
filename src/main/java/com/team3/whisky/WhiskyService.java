@@ -12,13 +12,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional(readOnly = true)
-public class WhiskySuggestionService {
+public class WhiskyService {
 
     private static final int MAX_QUERY_LENGTH = 255;
 
     private final WhiskyRepository whiskies;
 
-    public WhiskySuggestionService(WhiskyRepository whiskies) {
+    public WhiskyService(WhiskyRepository whiskies) {
         this.whiskies = whiskies;
     }
 

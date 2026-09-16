@@ -19,7 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(WhiskyController.class)
-@Import({SecurityConfig.class, WhiskySuggestionService.class})
+@Import({SecurityConfig.class, WhiskyService.class})
 class WhiskyHttpTests {
 
     @Autowired
