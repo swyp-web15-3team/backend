@@ -9,6 +9,7 @@ import com.team3.collection.CollectionRepository;
 import com.team3.whisky.WhiskyOriginRepository;
 import com.team3.whisky.WhiskyRegionRepository;
 import com.team3.whisky.WhiskyRepository;
+import com.team3.collection.CollectionWhiskyRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -74,7 +75,7 @@ class KakaoHttpTests {
     private WhiskyRegionRepository whiskyRegions;
 
     @MockitoBean
-    private CollectionRepository collections;
+    private CollectionWhiskyRepository collectionWhiskies;
 
     @Test
     void exchangesCodeWithoutSessionOrCookies() throws Exception {

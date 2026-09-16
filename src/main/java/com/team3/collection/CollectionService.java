@@ -7,6 +7,7 @@ import com.team3.collection.dto.CollectionsResponse;
 import com.team3.collection.exception.CollectionNotFoundException;
 import com.team3.collection.exception.DefaultCollectionImmutableException;
 import com.team3.collection.exception.DuplicateCollectionNameException;
+import com.team3.collection.exception.WhiskyNotFoundException;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,9 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class CollectionService {
 
     private final CollectionRepository collections;
+    private final CollectionWhiskyRepository collectionWhiskies;
 
-    public CollectionService(CollectionRepository collections) {
+    public CollectionService(
+        CollectionRepository collections,
+        CollectionWhiskyRepository collectionWhiskies) {
         this.collections = collections;
+        this.collectionWhiskies = collectionWhiskies;
     }
 
     public CollectionResponse createCollection(Long userId, String name) {
@@ -77,6 +82,29 @@ public class CollectionService {
             throw new DefaultCollectionImmutableException();
         }
         collections.delete(collection);
+    }
+
+    public void addWhisky(Long userId, Long collectionId, Long whiskyId) {
+        findOwnedCollection(userId, collectionId);
+        if (!collectionWhiskies.whiskyExists(whiskyId)) {
+            throw new WhiskyNotFoundException();
+        }
+        collectionWhiskies.add(collectionId, whiskyId);
+    }
+
+    public void removeWhiskies(Long userId, Long collectionId, List<Long> whiskyIds) {
+        findOwnedCollection(userId, collectionId);
+        for (Long whiskyId : whiskyIds) {
+            if (!collectionWhiskies.whiskyExists(whiskyId)) {
+                throw new WhiskyNotFoundException();
+            }
+        }
+        collectionWhiskies.removeAll(collectionId, whiskyIds);
+    }
+
+    private void findOwnedCollection(Long userId, Long collectionId) {
+        collections.findByIdAndUserId(collectionId, userId)
+            .orElseThrow(CollectionNotFoundException::new);
     }
 
     private boolean isNameConflict(Throwable exception) {

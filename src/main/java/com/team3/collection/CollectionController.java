@@ -3,6 +3,8 @@ package com.team3.collection;
 import com.team3.collection.dto.CollectionResponse;
 import com.team3.collection.dto.CollectionsResponse;
 import com.team3.collection.dto.CreateCollectionRequest;
+import com.team3.collection.dto.AddWhiskyRequest;
+import com.team3.collection.dto.DeleteWhiskiesRequest;
 import com.team3.collection.dto.UpdateCollectionRequest;
 import com.team3.common.ApiResponse;
 
@@ -14,6 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,5 +66,23 @@ public class CollectionController {
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable Long collectionId) {
         collections.deleteCollection(Long.valueOf(jwt.getSubject()), collectionId);
+    }
+
+    @PostMapping("/{collectionId}/whiskies")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void addWhisky(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable Long collectionId,
+        @Valid @RequestBody AddWhiskyRequest request) {
+        collections.addWhisky(Long.valueOf(jwt.getSubject()), collectionId, request.whiskyId());
+    }
+
+    @DeleteMapping("/{collectionId}/whiskies")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeWhiskies(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable Long collectionId,
+        @Valid @ModelAttribute DeleteWhiskiesRequest request) {
+        collections.removeWhiskies(Long.valueOf(jwt.getSubject()), collectionId, request.whiskyIds());
     }
 }

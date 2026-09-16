@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -49,6 +50,9 @@ class CollectionHttpTests {
 
     @MockitoBean
     private CollectionRepository collections;
+
+    @MockitoBean
+    private CollectionWhiskyRepository collectionWhiskies;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -307,6 +311,81 @@ class CollectionHttpTests {
         when(collections.saveAndFlush(any(Collection.class))).thenThrow(violation);
 
         assertThatThrownBy(() -> collectionService.createCollection(42L, "선물 후보")).isSameAs(violation);
+    }
+
+    @Test
+    void addsWhiskyToOwnedDefaultCollectionIdempotently() throws Exception {
+        Collection collection = collection(12L, "기본", true);
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
+        when(collectionWhiskies.whiskyExists(101L)).thenReturn(true);
+
+        for (int index = 0; index < 2; index++) {
+            mvc.perform(post("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"whiskyId\":101}"))
+                .andExpect(status().isNoContent()).andExpect(content().string(""));
+        }
+
+        verify(collectionWhiskies, times(2)).add(12L, 101L);
+    }
+
+    @Test
+    void removesKnownWhiskiesIncludingNonmembers() throws Exception {
+        Collection collection = collection(12L, "선물 후보");
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
+        when(collectionWhiskies.whiskyExists(101L)).thenReturn(true);
+        when(collectionWhiskies.whiskyExists(102L)).thenReturn(true);
+
+        mvc.perform(delete("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .param("whiskyIds", "101", "102"))
+            .andExpect(status().isNoContent()).andExpect(content().string(""));
+
+        verify(collectionWhiskies).removeAll(12L, List.of(101L, 102L));
+    }
+
+    @Test
+    void rejectsUnauthenticatedAndUnownedWhiskyChanges() throws Exception {
+        mvc.perform(post("/api/v1/collections/12/whiskies").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"whiskyId\":101}")).andExpect(status().isUnauthorized());
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.empty());
+
+        mvc.perform(delete("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .param("whiskyIds", "101")).andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("COLLECTION_002"));
+
+        verify(collectionWhiskies, never()).whiskyExists(101L);
+    }
+
+    @Test
+    void rejectsUnknownWhiskyWithoutRemovingAnyMemberships() throws Exception {
+        Collection collection = collection(12L, "선물 후보");
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
+        when(collectionWhiskies.whiskyExists(101L)).thenReturn(true);
+
+        mvc.perform(post("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"whiskyId\":102}")).andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("WHISKY_001"));
+        mvc.perform(delete("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .param("whiskyIds", "101", "102")).andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("WHISKY_001"));
+
+        verify(collectionWhiskies, never()).removeAll(any(), any());
+    }
+
+    @Test
+    void rejectsInvalidWhiskyMembershipInput() throws Exception {
+        mvc.perform(post("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors[0].field").value("whiskyId"));
+        mvc.perform(post("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"whiskyId\":0}")).andExpect(status().isBadRequest());
+        mvc.perform(delete("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(delete("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .param("whiskyIds", "0")).andExpect(status().isBadRequest());
+        mvc.perform(delete("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .param("whiskyIds", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
+                "17", "18", "19", "20", "21"))
+            .andExpect(status().isBadRequest());
     }
 
     private Collection collection(Long id, String name) {

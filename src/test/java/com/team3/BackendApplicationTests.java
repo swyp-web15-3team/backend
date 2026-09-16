@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.team3.auth.token.RefreshTokenRepository;
 import com.team3.collection.CollectionRepository;
+import com.team3.collection.CollectionWhiskyRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
@@ -22,8 +23,8 @@ import com.team3.whisky.WhiskyRepository;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude="
-            + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-            + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
+                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
+                + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
         "auth.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 })
 @AutoConfigureMockMvc
@@ -60,6 +61,9 @@ class BackendApplicationTests {
     @MockitoBean
     private WhiskyRegionRepository whiskyRegions;
 
+    @MockitoBean
+    private CollectionWhiskyRepository collectionWhiskies;
+
     @Test
     void contextLoads() {
     }
@@ -67,6 +71,6 @@ class BackendApplicationTests {
     @Test
     void healthEndpointDoesNotRequireAuthentication() throws Exception {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk())
-            .andExpect(jsonPath("$.status").value("UP"));
+                .andExpect(jsonPath("$.status").value("UP"));
     }
 }
