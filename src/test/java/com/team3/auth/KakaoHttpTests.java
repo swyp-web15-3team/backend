@@ -4,6 +4,7 @@ import com.team3.user.User;
 import com.team3.user.Provider;
 import com.team3.user.UserRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
+import com.team3.whisky.WhiskyRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -56,6 +57,8 @@ class KakaoHttpTests {
     private RefreshTokenRepository refreshTokens;
     @MockitoBean
     private WhiskyCategoryRepository whiskyCategories;
+    @MockitoBean
+    private WhiskyRepository whiskies;
 
     @Test
     void exchangesCodeWithoutSessionOrCookies() throws Exception {
