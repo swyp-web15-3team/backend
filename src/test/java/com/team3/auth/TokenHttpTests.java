@@ -1,6 +1,7 @@
 package com.team3.auth;
 
 import com.team3.user.UserRepository;
+import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
 import com.team3.collection.CollectionRepository;
 import com.team3.whisky.WhiskyRepository;
@@ -63,6 +64,9 @@ class TokenHttpTests {
 
     @MockitoBean
     private WhiskyRepository whiskies;
+
+    @MockitoBean
+    private PriceHistoryRepository priceHistories;
 
     @Test
     void disabledKakaoLoginDoesNotCreateSession() throws Exception {

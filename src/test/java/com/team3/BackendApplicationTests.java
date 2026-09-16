@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.team3.auth.token.RefreshTokenRepository;
 import com.team3.collection.CollectionRepository;
 import com.team3.user.UserRepository;
+import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
 import com.team3.whisky.WhiskyRepository;
 
@@ -47,6 +48,9 @@ class BackendApplicationTests {
 
     @MockitoBean
     private WhiskyRepository whiskies;
+
+    @MockitoBean
+    private PriceHistoryRepository priceHistories;
 
     @Test
     void contextLoads() {
