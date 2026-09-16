@@ -2,12 +2,14 @@ package com.team3.auth;
 
 import com.team3.user.UserRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
+import com.team3.collection.CollectionRepository;
 import com.team3.whisky.WhiskyRepository;
 
 import com.team3.auth.token.RefreshToken;
 import com.team3.auth.token.RefreshTokenRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -25,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -56,6 +59,9 @@ class TokenHttpTests {
     private WhiskyCategoryRepository whiskyCategories;
 
     @MockitoBean
+    private CollectionRepository collections;
+
+    @MockitoBean
     private WhiskyRepository whiskies;
 
     @Test
@@ -69,9 +75,21 @@ class TokenHttpTests {
 
     @Test
     void protectedEndpointRequiresValidBearerToken() throws Exception {
-        mvc.perform(get("/api/v1/test/me")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/test/me"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Bearer")))
+            .andExpect(jsonPath("$.title").value("Unauthorized"))
+            .andExpect(jsonPath("$.status").value(401))
+            .andExpect(jsonPath("$.detail").value("인증이 필요합니다."))
+            .andExpect(jsonPath("$.instance").value("/api/v1/test/me"))
+            .andExpect(jsonPath("$.code").value("AUTH_001"));
         mvc.perform(get("/api/v1/test/me").header("Authorization", "Bearer invalid"))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Bearer")))
+            .andExpect(jsonPath("$.status").value(401))
+            .andExpect(jsonPath("$.code").value("AUTH_001"));
         mvc.perform(get("/api/v1/test/me").header("Authorization", "Bearer " + tokens.issue(1L).accessToken()))
             .andExpect(status().isOk()).andExpect(content().string("1"));
     }
