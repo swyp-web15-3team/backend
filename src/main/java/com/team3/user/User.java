@@ -1,5 +1,7 @@
 package com.team3.user;
 
+import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -29,6 +31,9 @@ public class User {
     @Column(nullable = false, length = 16)
     private UserStatus status;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     protected User() {
     }
 
@@ -47,6 +52,24 @@ public class User {
 
     public boolean isPending() {
         return status == UserStatus.PENDING;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    public String providerId() {
+        return providerId;
+    }
+
+    public Instant deletedAt() {
+        return deletedAt;
+    }
+
+    public void delete(Instant deletedAt) {
+        if (this.deletedAt == null) {
+            this.deletedAt = deletedAt;
+        }
     }
 
     public void activate() {
