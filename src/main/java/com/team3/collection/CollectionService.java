@@ -1,6 +1,8 @@
 package com.team3.collection;
 
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import com.team3.collection.dto.CollectionResponse;
 import com.team3.collection.dto.CollectionsResponse;
@@ -8,6 +10,7 @@ import com.team3.collection.exception.CollectionNotFoundException;
 import com.team3.collection.exception.DefaultCollectionImmutableException;
 import com.team3.collection.exception.DuplicateCollectionNameException;
 import com.team3.collection.exception.WhiskyNotFoundException;
+import com.team3.whisky.WhiskyRepository;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,12 +24,15 @@ public class CollectionService {
 
     private final CollectionRepository collections;
     private final CollectionWhiskyRepository collectionWhiskies;
+    private final WhiskyRepository whiskies;
 
     public CollectionService(
         CollectionRepository collections,
-        CollectionWhiskyRepository collectionWhiskies) {
+        CollectionWhiskyRepository collectionWhiskies,
+        WhiskyRepository whiskies) {
         this.collections = collections;
         this.collectionWhiskies = collectionWhiskies;
+        this.whiskies = whiskies;
     }
 
     public CollectionResponse createCollection(Long userId, String name) {
@@ -86,25 +92,30 @@ public class CollectionService {
 
     public void addWhisky(Long userId, Long collectionId, Long whiskyId) {
         findOwnedCollection(userId, collectionId);
-        if (!collectionWhiskies.whiskyExists(whiskyId)) {
-            throw new WhiskyNotFoundException();
+        assertWhiskiesExist(Set.of(whiskyId));
+        if (!collectionWhiskies.existsByCollectionIdAndWhiskyId(collectionId, whiskyId)) {
+            collectionWhiskies.save(new CollectionWhisky(collectionId, whiskyId));
         }
-        collectionWhiskies.add(collectionId, whiskyId);
     }
 
     public void removeWhiskies(Long userId, Long collectionId, List<Long> whiskyIds) {
         findOwnedCollection(userId, collectionId);
-        for (Long whiskyId : whiskyIds) {
-            if (!collectionWhiskies.whiskyExists(whiskyId)) {
-                throw new WhiskyNotFoundException();
-            }
-        }
-        collectionWhiskies.removeAll(collectionId, whiskyIds);
+        Set<Long> uniqueWhiskyIds = new LinkedHashSet<>(whiskyIds);
+        assertWhiskiesExist(uniqueWhiskyIds);
+        List<CollectionWhisky> memberships = collectionWhiskies
+            .findAllByCollectionIdAndWhiskyIdIn(collectionId, uniqueWhiskyIds);
+        collectionWhiskies.deleteAllInBatch(memberships);
     }
 
     private void findOwnedCollection(Long userId, Long collectionId) {
         collections.findByIdAndUserId(collectionId, userId)
             .orElseThrow(CollectionNotFoundException::new);
+    }
+
+    private void assertWhiskiesExist(Set<Long> whiskyIds) {
+        if (whiskies.countByIdIn(whiskyIds) != whiskyIds.size()) {
+            throw new WhiskyNotFoundException();
+        }
     }
 
     private boolean isNameConflict(Throwable exception) {

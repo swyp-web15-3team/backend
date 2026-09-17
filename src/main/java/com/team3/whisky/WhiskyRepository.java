@@ -1,6 +1,7 @@
 package com.team3.whisky;
 
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Sort;
@@ -11,4 +12,6 @@ public interface WhiskyRepository extends JpaRepository<Whisky, Long>, WhiskyRep
     List<Whisky> findAllBy(Sort sort, Limit limit);
 
     List<Whisky> findByNameContaining(String name, Sort sort, Limit limit);
+
+    long countByIdIn(Set<Long> whiskyIds);
 }
