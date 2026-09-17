@@ -20,8 +20,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.team3.security.SecurityConfig;
+import com.team3.whisky.WhiskyRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,9 @@ class CollectionHttpTests {
 
     @MockitoBean
     private CollectionWhiskyRepository collectionWhiskies;
+
+    @MockitoBean
+    private WhiskyRepository whiskies;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -317,7 +322,8 @@ class CollectionHttpTests {
     void addsWhiskyToOwnedDefaultCollectionIdempotently() throws Exception {
         Collection collection = collection(12L, "기본", true);
         when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
-        when(collectionWhiskies.whiskyExists(101L)).thenReturn(true);
+        when(whiskies.countByIdIn(Set.of(101L))).thenReturn(1L);
+        when(collectionWhiskies.existsByCollectionIdAndWhiskyId(12L, 101L)).thenReturn(false, true);
 
         for (int index = 0; index < 2; index++) {
             mvc.perform(post("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
@@ -325,21 +331,25 @@ class CollectionHttpTests {
                 .andExpect(status().isNoContent()).andExpect(content().string(""));
         }
 
-        verify(collectionWhiskies, times(2)).add(12L, 101L);
+        verify(collectionWhiskies, times(2)).existsByCollectionIdAndWhiskyId(12L, 101L);
+        verify(collectionWhiskies).save(any(CollectionWhisky.class));
     }
 
     @Test
     void removesKnownWhiskiesIncludingNonmembers() throws Exception {
         Collection collection = collection(12L, "선물 후보");
+        CollectionWhisky membership = mock(CollectionWhisky.class);
         when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
-        when(collectionWhiskies.whiskyExists(101L)).thenReturn(true);
-        when(collectionWhiskies.whiskyExists(102L)).thenReturn(true);
+        when(whiskies.countByIdIn(Set.of(101L, 102L))).thenReturn(2L);
+        when(collectionWhiskies.findAllByCollectionIdAndWhiskyIdIn(12L, Set.of(101L, 102L)))
+            .thenReturn(List.of(membership));
 
         mvc.perform(delete("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
-            .param("whiskyIds", "101", "102"))
+            .param("whiskyIds", "101", "102", "101"))
             .andExpect(status().isNoContent()).andExpect(content().string(""));
 
-        verify(collectionWhiskies).removeAll(12L, List.of(101L, 102L));
+        verify(collectionWhiskies).findAllByCollectionIdAndWhiskyIdIn(12L, Set.of(101L, 102L));
+        verify(collectionWhiskies).deleteAllInBatch(List.of(membership));
     }
 
     @Test
@@ -352,14 +362,13 @@ class CollectionHttpTests {
             .param("whiskyIds", "101")).andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("COLLECTION_002"));
 
-        verify(collectionWhiskies, never()).whiskyExists(101L);
+        verify(whiskies, never()).countByIdIn(any());
     }
 
     @Test
     void rejectsUnknownWhiskyWithoutRemovingAnyMemberships() throws Exception {
         Collection collection = collection(12L, "선물 후보");
         when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
-        when(collectionWhiskies.whiskyExists(101L)).thenReturn(true);
 
         mvc.perform(post("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
             .contentType(MediaType.APPLICATION_JSON).content("{\"whiskyId\":102}")).andExpect(status().isNotFound())
@@ -368,7 +377,7 @@ class CollectionHttpTests {
             .param("whiskyIds", "101", "102")).andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("WHISKY_001"));
 
-        verify(collectionWhiskies, never()).removeAll(any(), any());
+        verify(collectionWhiskies, never()).deleteAllInBatch(any());
     }
 
     @Test
