@@ -23,8 +23,8 @@ import com.team3.whisky.WhiskyRepository;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude="
-                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
+            + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
+            + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
         "auth.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 })
 @AutoConfigureMockMvc
@@ -71,6 +71,6 @@ class BackendApplicationTests {
     @Test
     void healthEndpointDoesNotRequireAuthentication() throws Exception {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"));
+            .andExpect(jsonPath("$.status").value("UP"));
     }
 }
