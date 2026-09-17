@@ -19,7 +19,7 @@ class AuthPropertiesTests {
         .withPropertyValues("auth.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
             "auth.jwt.issuer=backend", "auth.jwt.access-ttl=15m", "auth.jwt.refresh-ttl=14d",
             "auth.kakao.enabled=false", "auth.kakao.client-id=", "auth.kakao.client-secret=",
-            "auth.kakao.redirect-uri=");
+            "auth.kakao.redirect-uri=", "auth.kakao.admin-key=");
 
     @Test
     void disabledKakaoStartsWithEmptySettingsAndBindsJwtDurations() {
@@ -36,13 +36,14 @@ class AuthPropertiesTests {
     @Test
     void enabledKakaoBindsSettingsAndCreatesClient() {
         runner.withPropertyValues("auth.kakao.enabled=true", "auth.kakao.client-id=app",
-            "auth.kakao.redirect-uri=http://localhost:3000/auth/kakao/callback")
+            "auth.kakao.redirect-uri=http://localhost:3000/auth/kakao/callback", "auth.kakao.admin-key=admin")
             .run(context -> {
                 assertThat(context).hasNotFailed().hasSingleBean(KakaoClient.class);
                 KakaoProperties kakao = context.getBean(KakaoProperties.class);
                 assertThat(kakao.clientId()).isEqualTo("app");
                 assertThat(kakao.clientSecret()).isEmpty();
                 assertThat(kakao.redirectUri()).isEqualTo("http://localhost:3000/auth/kakao/callback");
+                assertThat(kakao.adminKey()).isEqualTo("admin");
             });
     }
 
@@ -60,7 +61,7 @@ class AuthPropertiesTests {
             "auth.kakao.redirect-uri=http://localhost:3000/auth/kakao/callback")
             .run(context -> assertThat(context).hasFailed());
         runner.withPropertyValues("auth.kakao.enabled=true", "auth.kakao.client-id=app",
-            "auth.kakao.redirect-uri=ftp://localhost/callback")
+            "auth.kakao.redirect-uri=ftp://localhost/callback", "auth.kakao.admin-key=admin")
             .run(context -> assertThat(context).hasFailed());
     }
 

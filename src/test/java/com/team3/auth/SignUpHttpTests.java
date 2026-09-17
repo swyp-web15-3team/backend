@@ -17,6 +17,7 @@ import com.team3.collection.CollectionWhiskyRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -29,10 +30,12 @@ import java.util.Optional;
 
 import com.team3.auth.token.RefreshTokenRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -46,7 +49,7 @@ import org.mockito.ArgumentCaptor;
 @AutoConfigureMockMvc
 @MockitoBean(types = {JpaMetamodelMappingContext.class, CollectionRepository.class, CollectionWhiskyRepository.class,
         PriceHistoryRepository.class, WhiskyOriginRepository.class, WhiskyRegionRepository.class,
-        WhiskyRepository.class})
+        WhiskyRepository.class, PlatformTransactionManager.class})
 class SignUpHttpTests {
 
     private static final String BODY = "{\"termsOfServiceAgreed\":true,\"privacyPolicyAgreed\":true,"
@@ -65,10 +68,15 @@ class SignUpHttpTests {
     @MockitoBean
     private WhiskyCategoryRepository whiskyCategories;
 
+    @BeforeEach
+    void setUp() {
+        when(users.findLockedById(1L)).thenReturn(Optional.of(new User(Provider.KAKAO, "123")));
+    }
+
     @Test
     void activatesPendingUserAndRecordsEveryAgreement() throws Exception {
         User user = new User(Provider.KAKAO, "123");
-        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
         mvc.perform(signUp(BODY)).andExpect(status().isNoContent()).andExpect(content().string(""));
         assertThat(user.isPending()).isFalse();
 
@@ -86,7 +94,7 @@ class SignUpHttpTests {
     void rejectsSecondSignUpForActiveUser() throws Exception {
         User user = new User(Provider.KAKAO, "123");
         user.activate();
-        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
         mvc.perform(signUp(BODY))
             .andExpect(status().isConflict())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
@@ -110,7 +118,9 @@ class SignUpHttpTests {
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder signUp(String body) {
+        String accessToken = tokens.issue(1L).accessToken();
+        clearInvocations(users);
         return post("/api/v1/auth/sign-up").contentType(MediaType.APPLICATION_JSON).content(body)
-            .header("Authorization", "Bearer " + tokens.issue(1L).accessToken());
+            .header("Authorization", "Bearer " + accessToken);
     }
 }

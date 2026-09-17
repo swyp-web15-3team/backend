@@ -14,6 +14,7 @@ import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import com.team3.auth.token.RefreshTokenRepository;
 import com.team3.collection.CollectionRepository;
@@ -74,6 +75,9 @@ class BackendApplicationTests {
 
     @MockitoBean
     private CollectionWhiskyRepository collectionWhiskies;
+
+    @MockitoBean
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void contextLoads() {

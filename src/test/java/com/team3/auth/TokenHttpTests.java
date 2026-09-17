@@ -27,11 +27,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.util.Optional;
 
+import com.team3.user.Provider;
+import com.team3.user.User;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -68,6 +72,9 @@ class TokenHttpTests {
     private JpaMetamodelMappingContext jpaMappingContext;
 
     @MockitoBean
+    private PlatformTransactionManager transactionManager;
+
+    @MockitoBean
     private WhiskyCategoryRepository whiskyCategories;
 
     @MockitoBean
@@ -75,6 +82,13 @@ class TokenHttpTests {
 
     @MockitoBean
     private WhiskyRepository whiskies;
+
+    @BeforeEach
+    void setUp() {
+        User user = new User(Provider.KAKAO, "123");
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+    }
 
     @MockitoBean
     private PriceHistoryRepository priceHistories;
@@ -120,6 +134,7 @@ class TokenHttpTests {
 
     @Test
     void refreshWorksWithoutAccessTokenAndDoesNotCacheTokens() throws Exception {
+        when(repository.findOwnerByTokenHash(anyString())).thenReturn(Optional.of(() -> 1L));
         when(repository.findByTokenHash(anyString())).thenReturn(Optional.of(
             new RefreshToken(1L, "hash", Instant.now().plusSeconds(3600))));
         mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)

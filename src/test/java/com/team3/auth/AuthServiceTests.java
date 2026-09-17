@@ -1,5 +1,9 @@
 package com.team3.auth;
 
+import com.team3.auth.exception.AlreadySignedUpException;
+import com.team3.auth.exception.DeletedUserException;
+import com.team3.auth.exception.InvalidUserIdException;
+import com.team3.common.exception.ErrorCode;
 import com.team3.user.AgreementType;
 import com.team3.user.User;
 import com.team3.user.Provider;
@@ -18,10 +22,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
@@ -33,8 +42,11 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 
 import javax.crypto.SecretKey;
 
@@ -54,6 +66,9 @@ class AuthServiceTests {
     private final RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
     private final UserRepository users = mock(UserRepository.class);
     private final UserAgreementRepository agreements = mock(UserAgreementRepository.class);
+    private final RefreshTokenRepository.TokenOwner owner = () -> 1L;
+    private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+    private final TransactionStatus transaction = mock(TransactionStatus.class);
     private final JwtConfig config = new JwtConfig();
     private final Clock clock = Clock.systemUTC();
     private AuthService service;
@@ -63,6 +78,11 @@ class AuthServiceTests {
     void setUp() {
         SecretKey key = config.jwtKey(properties(SECRET, "backend"));
         decoder = config.jwtDecoder(key, properties(SECRET, "backend"));
+        User user = new User(Provider.KAKAO, "123");
+        when(users.findById(anyLong())).thenReturn(Optional.of(user));
+        when(users.findLockedById(anyLong())).thenReturn(Optional.of(user));
+        when(repository.findOwnerByTokenHash(anyString())).thenReturn(Optional.of(owner));
+        when(transactionManager.getTransaction(any())).thenReturn(transaction);
         service = service(clock);
     }
 
@@ -98,6 +118,10 @@ class AuthServiceTests {
         assertThat(rotated.refreshToken()).isNotEqualTo(original.refreshToken());
         assertThat(decoder.decode(rotated.accessToken()).getSubject()).isEqualTo("1");
         assertThat(row[0].expiresAt()).isEqualTo(expiration);
+        org.mockito.InOrder order = inOrder(repository, users);
+        order.verify(repository).findOwnerByTokenHash(anyString());
+        order.verify(users).findLockedById(1L);
+        order.verify(repository).findByTokenHash(anyString());
         assertUnauthorized(() -> service.refresh(original.refreshToken()));
         service.logout(rotated.refreshToken());
         verify(repository).delete(row[0]);
@@ -124,11 +148,16 @@ class AuthServiceTests {
     }
 
     @Test
-    void rejectsExpiredUnknownAndMalformedRefreshTokens() {
+    void rejectsExpiredDisappearedMismatchedUnknownAndMalformedRefreshTokens() {
         String raw = "a".repeat(43);
+        when(repository.findOwnerByTokenHash(anyString())).thenReturn(Optional.empty(), Optional.of(owner));
         assertUnauthorized(() -> service.refresh(raw));
         when(repository.findByTokenHash(anyString())).thenReturn(Optional.of(
-            new RefreshToken(1L, "hash", clock.instant().minusSeconds(1))));
+            new RefreshToken(1L, "hash", clock.instant().minusSeconds(1))), Optional.empty(),
+            Optional.of(
+                new RefreshToken(2L, "hash", clock.instant().plusSeconds(1))));
+        assertUnauthorized(() -> service.refresh(raw));
+        assertUnauthorized(() -> service.refresh(raw));
         assertUnauthorized(() -> service.refresh(raw));
         assertUnauthorized(() -> service.refresh("bad"));
         assertUnauthorized(() -> service.refresh(null));
@@ -152,9 +181,10 @@ class AuthServiceTests {
     void rejectsWeakKeysAndInvalidUserIds() {
         assertThatThrownBy(() -> config.jwtKey(properties("YWJj", "backend")))
             .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.issue(null)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.issue(0L)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.issue(-1L)).isInstanceOf(IllegalArgumentException.class);
+        assertInvalidUserId(() -> service.issue(null));
+        assertInvalidUserId(() -> service.issue(0L));
+        assertInvalidUserId(() -> service.issue(-1L));
+        assertInvalidUserId(() -> new RefreshTokenService(repository, clock, properties(SECRET, "backend")).issue(0L));
     }
 
     @Test
@@ -187,7 +217,7 @@ class AuthServiceTests {
         when(users.findByProviderAndProviderId(Provider.KAKAO, "external:abc-123")).thenReturn(Optional.of(pending));
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isTrue();
 
-        when(users.findById(7L)).thenReturn(Optional.of(pending));
+        when(users.findLockedById(7L)).thenReturn(Optional.of(pending));
         service.signUp(7L, true);
         assertThat(pending.isPending()).isFalse();
 
@@ -203,8 +233,63 @@ class AuthServiceTests {
 
     @Test
     void rejectsSignUpForUnknownUser() {
-        when(users.findById(9L)).thenReturn(Optional.empty());
+        when(users.findLockedById(9L)).thenReturn(Optional.empty());
         assertUnauthorized(() -> service.signUp(9L, false));
+    }
+
+    @Test
+    void rejectsDeletedUsersFromLoginSignUpTokenIssuanceAndRefresh() {
+        User deleted = new User(Provider.KAKAO, "123");
+        deleted.delete(clock.instant());
+        when(users.findByProviderAndProviderId(Provider.KAKAO, "123")).thenReturn(Optional.of(deleted));
+        when(users.findById(1L)).thenReturn(Optional.of(deleted));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(deleted));
+        when(repository.findOwnerByTokenHash(anyString())).thenReturn(Optional.of(owner));
+        assertThatThrownBy(() -> service.findOrCreateUser(Provider.KAKAO, "123"))
+            .isInstanceOf(DeletedUserException.class);
+        assertThatThrownBy(() -> service.signUp(1L, false)).isInstanceOf(DeletedUserException.class);
+        assertThatThrownBy(() -> service.issue(1L)).isInstanceOf(DeletedUserException.class);
+        assertThatThrownBy(() -> service.refresh("a".repeat(43))).isInstanceOf(DeletedUserException.class);
+    }
+
+    @Test
+    void withdrawsAtClockInstantRevokesTokensOnceAndCommitsAfterKakaoUnlink() {
+        Clock nonUtcClock = Clock.fixed(Instant.parse("2026-09-16T00:00:00Z"), ZoneId.of("Asia/Seoul"));
+        KakaoClient kakao = mock(KakaoClient.class);
+        User user = new User(Provider.KAKAO, "123");
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+
+        service(nonUtcClock).withdraw(1L, kakao);
+        service(nonUtcClock).withdraw(1L, kakao);
+
+        assertThat(user.deletedAt()).isEqualTo(nonUtcClock.instant());
+        verify(repository, times(1)).deleteByUserId(1L);
+        verify(transactionManager, times(1)).commit(transaction);
+        org.mockito.InOrder order = inOrder(kakao, transactionManager);
+        order.verify(kakao).unlink("123");
+        order.verify(transactionManager).getTransaction(any());
+    }
+
+    @Test
+    void doesNotStartFinalizationTransactionWhenKakaoUnlinkFails() {
+        KakaoClient kakao = mock(KakaoClient.class);
+        doThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Kakao unlink failed.")).when(kakao).unlink("123");
+
+        assertThatThrownBy(() -> service.withdraw(1L, kakao)).isInstanceOf(ResponseStatusException.class);
+
+        verifyNoInteractions(transactionManager);
+    }
+
+    @Test
+    void rollsBackFinalizationTransactionWhenTokenRevocationFails() {
+        KakaoClient kakao = mock(KakaoClient.class);
+        DataIntegrityViolationException failure = new DataIntegrityViolationException("database unavailable");
+        doThrow(failure).when(repository).deleteByUserId(1L);
+
+        assertThatThrownBy(() -> service.withdraw(1L, kakao)).isSameAs(failure);
+
+        verify(transactionManager).rollback(transaction);
     }
 
     @SuppressWarnings("unchecked")
@@ -216,7 +301,7 @@ class AuthServiceTests {
         return new AuthService(new RefreshTokenService(repository, tokenClock, properties(SECRET, "backend")),
             new JwtProvider(config.jwtEncoder(config.jwtKey(properties(SECRET, "backend"))), tokenClock,
                 properties(SECRET, "backend")),
-            users, agreements);
+            users, agreements, transactionManager, tokenClock);
     }
 
     private JwtProperties properties(String secret, String issuer) {
@@ -226,5 +311,13 @@ class AuthServiceTests {
     private void assertUnauthorized(Runnable action) {
         assertThatThrownBy(action::run).isInstanceOfSatisfying(ResponseStatusException.class,
             ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED));
+    }
+
+    private void assertInvalidUserId(Runnable action) {
+        assertThatThrownBy(action::run).isInstanceOfSatisfying(InvalidUserIdException.class, ex -> {
+            assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INVALID_USER_ID);
+            assertThat(ex.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(ex.getErrorCode().getCode()).isEqualTo("AUTH_004");
+        });
     }
 }
