@@ -49,4 +49,31 @@ public class PriceHistoryRepositoryImpl implements PriceHistoryRepositoryCustom 
                         .where(LATEST.saleProduct.eq(SALE_PRODUCT))))
             .fetch();
     }
+
+    @Override
+    public List<WhiskyLatestPrice> findLatestPrices(Collection<Long> saleProductIds) {
+        if (saleProductIds.isEmpty()) {
+            return List.of();
+        }
+        return queryFactory
+            .select(Projections.constructor(
+                WhiskyLatestPrice.class,
+                SALE_PRODUCT.whisky.id,
+                PRICE_HISTORY.price,
+                PRICE_HISTORY.currencyCode,
+                RETAILER.countryCode,
+                RETAILER.name,
+                PRICE_HISTORY.collectedAt,
+                SALE_PRODUCT.id))
+            .from(PRICE_HISTORY)
+            .join(PRICE_HISTORY.saleProduct, SALE_PRODUCT)
+            .join(SALE_PRODUCT.retailer, RETAILER)
+            .where(
+                SALE_PRODUCT.id.in(saleProductIds),
+                PRICE_HISTORY.collectedAt.eq(
+                    JPAExpressions.select(LATEST.collectedAt.max())
+                        .from(LATEST)
+                        .where(LATEST.saleProduct.eq(SALE_PRODUCT))))
+            .fetch();
+    }
 }

@@ -4,6 +4,7 @@ import com.team3.user.User;
 import com.team3.user.Provider;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;
+import com.team3.whisky.SaleProductRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
 import com.team3.collection.CollectionRepository;
 import com.team3.whisky.WhiskyOriginRepository;
@@ -68,6 +69,8 @@ class KakaoHttpTests {
     private CollectionRepository collections;
     @MockitoBean
     private PriceHistoryRepository priceHistories;
+    @MockitoBean
+    private SaleProductRepository saleProducts;
     @MockitoBean
     private WhiskyOriginRepository whiskyOrigins;
     @MockitoBean

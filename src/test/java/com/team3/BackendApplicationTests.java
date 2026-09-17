@@ -15,6 +15,7 @@ import com.team3.auth.token.RefreshTokenRepository;
 import com.team3.collection.CollectionRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;
+import com.team3.whisky.SaleProductRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
 import com.team3.whisky.WhiskyOriginRepository;
 import com.team3.whisky.WhiskyRegionRepository;
@@ -53,6 +54,9 @@ class BackendApplicationTests {
 
     @MockitoBean
     private PriceHistoryRepository priceHistories;
+
+    @MockitoBean
+    private SaleProductRepository saleProducts;
 
     @MockitoBean
     private WhiskyOriginRepository whiskyOrigins;
