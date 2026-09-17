@@ -10,6 +10,7 @@ import com.team3.common.exception.ErrorCode;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -39,6 +40,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             .toList();
         problem.setProperty("errors", errors);
         return handleExceptionInternal(ex, problem, headers, status, request);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(
+        TypeMismatchException ex,
+        @NonNull HttpHeaders headers,
+        @NonNull HttpStatusCode status,
+        @NonNull WebRequest request) {
+        if ("whiskyId".equals(ex.getPropertyName())) {
+            ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "위스키 ID가 올바르지 않습니다.");
+            return handleExceptionInternal(ex, problem, headers, status, request);
+        }
+        return super.handleTypeMismatch(ex, headers, status, request);
     }
 
     private Map<String, String> toValidationError(FieldError error) {
