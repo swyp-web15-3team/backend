@@ -52,8 +52,8 @@ import org.mockito.ArgumentCaptor;
         WhiskyRepository.class, PlatformTransactionManager.class})
 class SignUpHttpTests {
 
-    private static final String BODY = "{\"termsOfServiceAgreed\":true,\"privacyPolicyAgreed\":true,"
-        + "\"marketingAgreed\":false}";
+    private static final String BODY = "{\"ageOver14Agreed\":true,\"termsOfServiceAgreed\":true,"
+        + "\"privacyPolicyAgreed\":true}";
 
     @Autowired
     private MockMvc mvc;
@@ -85,6 +85,7 @@ class SignUpHttpTests {
         verify(agreements).saveAll(saved.capture());
         assertThat(saved.getValue()).extracting(UserAgreement::userId, UserAgreement::type, UserAgreement::agreed)
             .containsExactly(
+                org.assertj.core.groups.Tuple.tuple(1L, AgreementType.AGE_OVER_14, true),
                 org.assertj.core.groups.Tuple.tuple(1L, AgreementType.TERMS_OF_SERVICE, true),
                 org.assertj.core.groups.Tuple.tuple(1L, AgreementType.PRIVACY_POLICY, true),
                 org.assertj.core.groups.Tuple.tuple(1L, AgreementType.MARKETING, false));
@@ -104,17 +105,37 @@ class SignUpHttpTests {
     }
 
     @Test
-    void rejectsMissingTokenAndMissingRequiredAgreements() throws Exception {
+    void rejectsMissingTokenAndRequiredAgreementFalseOrMissing() throws Exception {
         mvc.perform(post("/api/v1/auth/sign-up").contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("AUTH_001"));
 
-        String declined = "{\"termsOfServiceAgreed\":false,\"privacyPolicyAgreed\":true}";
-        mvc.perform(signUp(declined))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.errors[0].field").value("termsOfServiceAgreed"))
-            .andExpect(jsonPath("$.errors[0].message").value("이용약관 동의가 필요합니다."));
-        verify(users, never()).findById(1L);
+        for (String[] required : new String[][]{
+                {"ageOver14Agreed", "만 14세 이상 동의가 필요합니다."},
+                {"termsOfServiceAgreed", "이용약관 동의가 필요합니다."},
+                {"privacyPolicyAgreed", "개인정보 수집 및 이용 동의가 필요합니다."}}) {
+            for (String body : new String[]{agreementBody(null, required[0]), agreementBody(required[0], null)}) {
+                mvc.perform(signUp(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors[0].field").value(required[0]))
+                    .andExpect(jsonPath("$.errors[0].message").value(required[1]));
+            }
+        }
+        verify(users, never()).findLockedById(1L);
+    }
+
+    private String agreementBody(String omitted, String declined) {
+        List<String> fields = new java.util.ArrayList<>();
+        addRequired(fields, "ageOver14Agreed", omitted, declined);
+        addRequired(fields, "termsOfServiceAgreed", omitted, declined);
+        addRequired(fields, "privacyPolicyAgreed", omitted, declined);
+        return "{" + String.join(",", fields) + "}";
+    }
+
+    private void addRequired(List<String> fields, String field, String omitted, String declined) {
+        if (!field.equals(omitted)) {
+            fields.add("\"" + field + "\":" + !field.equals(declined));
+        }
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder signUp(String body) {

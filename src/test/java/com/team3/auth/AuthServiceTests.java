@@ -224,8 +224,8 @@ class AuthServiceTests {
         ArgumentCaptor<List<UserAgreement>> saved = agreementsCaptor();
         verify(agreements).saveAll(saved.capture());
         assertThat(saved.getValue()).extracting(UserAgreement::type, UserAgreement::agreed).containsExactly(
-            tuple(AgreementType.TERMS_OF_SERVICE, true), tuple(AgreementType.PRIVACY_POLICY, true),
-            tuple(AgreementType.MARKETING, true));
+            tuple(AgreementType.AGE_OVER_14, true), tuple(AgreementType.TERMS_OF_SERVICE, true),
+            tuple(AgreementType.PRIVACY_POLICY, true), tuple(AgreementType.MARKETING, true));
 
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isFalse();
         assertThatThrownBy(() -> service.signUp(7L, true)).isInstanceOf(AlreadySignedUpException.class);

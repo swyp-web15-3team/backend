@@ -77,6 +77,7 @@ public class AuthService {
         }
         user.activate();
         agreements.saveAll(List.of(
+            new UserAgreement(userId, AgreementType.AGE_OVER_14, true),
             new UserAgreement(userId, AgreementType.TERMS_OF_SERVICE, true),
             new UserAgreement(userId, AgreementType.PRIVACY_POLICY, true),
             new UserAgreement(userId, AgreementType.MARKETING, marketingAgreed)));
