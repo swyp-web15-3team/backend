@@ -27,7 +27,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/kakao", "/api/v1/auth/refresh",
                     "/api/v1/auth/logout").permitAll();
-                auth.requestMatchers(HttpMethod.GET, "/api/v1/whisky-categories", "/api/v1/whiskies/suggestions")
+                auth.requestMatchers(HttpMethod.GET, "/api/v1/whisky-categories", "/api/v1/whiskies",
+                    "/api/v1/whiskies/suggestions")
                     .permitAll();
                 auth.requestMatchers("/actuator/health", "/error").permitAll();
                 if (docsEnabled) {

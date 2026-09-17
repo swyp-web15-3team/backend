@@ -6,7 +6,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface WhiskyRepository extends JpaRepository<Whisky, Long> {
+public interface WhiskyRepository extends JpaRepository<Whisky, Long>, WhiskyRepositoryCustom {
 
     List<Whisky> findAllBy(Sort sort, Limit limit);
 
