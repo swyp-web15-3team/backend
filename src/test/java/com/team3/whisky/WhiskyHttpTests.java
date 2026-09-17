@@ -56,6 +56,9 @@ class WhiskyHttpTests {
     private PriceHistoryRepository prices;
 
     @MockitoBean
+    private SaleProductRepository saleProducts;
+
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @Test
