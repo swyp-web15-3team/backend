@@ -13,7 +13,11 @@ public enum ErrorCode {
                 "COLLECTION_003", "기본 관심 그룹은 수정할 수 없습니다."), WHISKY_NOT_FOUND(HttpStatus.NOT_FOUND,
                     "WHISKY_001", "위스키를 찾을 수 없습니다."),
 
-    ALREADY_SIGNED_UP(HttpStatus.CONFLICT, "AUTH_002", "이미 가입이 완료된 사용자입니다.");
+    ALREADY_SIGNED_UP(HttpStatus.CONFLICT, "AUTH_002", "이미 가입이 완료된 사용자입니다."),
+
+    DELETED_USER(HttpStatus.FORBIDDEN, "AUTH_003", "탈퇴한 사용자입니다."),
+
+    INVALID_USER_ID(HttpStatus.BAD_REQUEST, "AUTH_004", "유효하지 않은 사용자 ID입니다.");
 
     private final HttpStatus status;
     private final String code;

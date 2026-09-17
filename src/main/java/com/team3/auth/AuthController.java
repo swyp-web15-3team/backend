@@ -16,6 +16,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -57,7 +58,21 @@ public class AuthController {
     @PostMapping("/sign-up")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void signUp(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody SignUpRequest request) {
-        tokens.signUp(Long.valueOf(jwt.getSubject()), request.marketingAgreed());
+        tokens.signUp(userId(jwt), request.marketingAgreed());
+    }
+
+    @DeleteMapping("/withdrawal")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdraw(@AuthenticationPrincipal Jwt jwt) {
+        tokens.withdraw(userId(jwt), kakaoClient());
+    }
+
+    private long userId(Jwt jwt) {
+        try {
+            return Long.parseLong(jwt.getSubject());
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user.");
+        }
     }
 
     private KakaoClient kakaoClient() {

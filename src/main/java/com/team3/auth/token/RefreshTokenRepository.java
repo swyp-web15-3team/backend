@@ -9,6 +9,14 @@ import org.springframework.data.jpa.repository.Lock;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
 
+    Optional<TokenOwner> findOwnerByTokenHash(String tokenHash);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RefreshToken> findByTokenHash(String tokenHash);
+
+    long deleteByUserId(Long userId);
+
+    interface TokenOwner {
+        Long getUserId();
+    }
 }

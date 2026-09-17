@@ -1,5 +1,8 @@
 package com.team3.auth;
 
+import com.team3.auth.exception.AlreadySignedUpException;
+import com.team3.auth.exception.DeletedUserException;
+import com.team3.auth.exception.InvalidUserIdException;
 import com.team3.user.AgreementType;
 import com.team3.user.User;
 import com.team3.user.Provider;
@@ -7,13 +10,17 @@ import com.team3.user.UserAgreement;
 import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.support.TransactionTemplate;
 import com.team3.auth.jwt.JwtProvider;
 import com.team3.auth.token.RefreshTokenService;
 import org.springframework.stereotype.Service;
@@ -27,19 +34,24 @@ public class AuthService {
     private final JwtProvider jwtProvider;
     private final UserRepository users;
     private final UserAgreementRepository agreements;
+    private final TransactionTemplate withdrawalTransaction;
+    private final Clock clock;
 
     public AuthService(RefreshTokenService refreshTokens, JwtProvider jwtProvider, UserRepository users,
-        UserAgreementRepository agreements) {
+        UserAgreementRepository agreements, PlatformTransactionManager transactionManager, Clock clock) {
         this.refreshTokens = refreshTokens;
         this.jwtProvider = jwtProvider;
         this.users = users;
         this.agreements = agreements;
+        this.withdrawalTransaction = new TransactionTemplate(transactionManager);
+        this.clock = clock;
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public UserResult findOrCreateUser(Provider provider, String providerId) {
         User user = users.findByProviderAndProviderId(provider, providerId).orElse(null);
         if (user != null) {
+            checkNotDeleted(user);
             return new UserResult(user.id(), user.isPending());
         }
 
@@ -49,6 +61,7 @@ public class AuthService {
         } catch (DataIntegrityViolationException ex) {
             User existing = users.findByProviderAndProviderId(provider, providerId).orElse(null);
             if (existing != null) {
+                checkNotDeleted(existing);
                 return new UserResult(existing.id(), existing.isPending());
             }
             throw ex;
@@ -56,8 +69,9 @@ public class AuthService {
     }
 
     public void signUp(Long userId, boolean marketingAgreed) {
-        User user = users.findById(userId)
+        User user = users.findLockedById(userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user."));
+        checkNotDeleted(user);
         if (!user.isPending()) {
             throw new AlreadySignedUpException();
         }
@@ -69,17 +83,54 @@ public class AuthService {
     }
 
     public TokenPair issue(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new InvalidUserIdException();
+        }
+        checkNotDeleted(users.findLockedById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user.")));
         String refresh = refreshTokens.issue(userId);
         return tokens(userId, refresh);
     }
 
     public TokenPair refresh(String rawToken) {
-        RefreshTokenService.Rotation rotated = refreshTokens.refresh(rawToken);
+        Long userId = refreshTokens.userId(rawToken);
+        User user = users.findLockedById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user."));
+        checkNotDeleted(user);
+        RefreshTokenService.Rotation rotated = refreshTokens.refresh(rawToken, userId);
         return tokens(rotated.userId(), rotated.refreshToken());
     }
 
     public void logout(String rawToken) {
         refreshTokens.logout(rawToken);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void withdraw(Long userId, KakaoClient kakao) {
+        Instant startedAt = clock.instant();
+        User user = users.findById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user."));
+        if (user.isDeleted()) {
+            return;
+        }
+        String providerId = user.providerId();
+        kakao.unlink(providerId);
+        withdrawalTransaction.executeWithoutResult(status -> finalizeWithdrawal(userId, startedAt));
+    }
+
+    private void finalizeWithdrawal(Long userId, Instant startedAt) {
+        User user = users.findLockedById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user."));
+        if (!user.isDeleted()) {
+            user.delete(startedAt);
+            refreshTokens.revokeAll(userId);
+        }
+    }
+
+    private void checkNotDeleted(User user) {
+        if (user.isDeleted()) {
+            throw new DeletedUserException();
+        }
     }
 
     private TokenPair tokens(Long userId, String refresh) {

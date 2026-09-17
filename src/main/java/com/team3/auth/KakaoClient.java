@@ -26,6 +26,7 @@ public class KakaoClient {
     private final String clientId;
     private final String clientSecret;
     private final String redirectUri;
+    private final String adminKey;
 
     @Autowired
     public KakaoClient(RestClient.Builder builder, KakaoProperties properties) {
@@ -36,14 +37,16 @@ public class KakaoClient {
         String clientId = properties.clientId();
         String redirectUri = properties.redirectUri();
         URI redirect = URI.create(redirectUri);
-        if (clientId.isBlank() || redirect.getHost() == null || redirect.getFragment() != null
+        if (clientId.isBlank() || properties.adminKey().isBlank() || redirect.getHost() == null
+            || redirect.getFragment() != null
             || !("https".equals(redirect.getScheme()) || "http".equals(redirect.getScheme()))) {
-            throw new IllegalArgumentException("Valid Kakao client ID and redirect URI are required.");
+            throw new IllegalArgumentException("Valid Kakao settings are required.");
         }
         this.client = client;
         this.clientId = clientId;
         this.clientSecret = properties.clientSecret();
         this.redirectUri = redirectUri;
+        this.adminKey = properties.adminKey();
     }
 
     private static RestClient createClient(RestClient.Builder builder) {
@@ -84,6 +87,40 @@ public class KakaoClient {
         }
     }
 
+    public void unlink(String providerId) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("target_id_type", "user_id");
+        form.add("target_id", providerId);
+        try {
+            User user = client.post().uri("https://kapi.kakao.com/v1/user/unlink")
+                .headers(headers -> headers.set("Authorization", "KakaoAK " + adminKey))
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED).body(form).retrieve().body(User.class);
+            if (user == null || user.id() == null || !Long.toString(user.id()).equals(providerId)) {
+                throw unlinkFailure();
+            }
+        } catch (RestClientResponseException ex) {
+            if (alreadyUnlinked(ex)) {
+                return;
+            }
+            throw unlinkFailure();
+        } catch (RestClientException ex) {
+            throw unlinkFailure();
+        }
+    }
+
+    private ResponseStatusException unlinkFailure() {
+        return new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Kakao unlink failed.");
+    }
+
+    private boolean alreadyUnlinked(RestClientResponseException ex) {
+        try {
+            KakaoError error = ex.getResponseBodyAs(KakaoError.class);
+            return error != null && Integer.valueOf(-101).equals(error.code());
+        } catch (RestClientException ignored) {
+            return false;
+        }
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Token(@JsonProperty("access_token") String accessToken) {
     }
@@ -91,4 +128,9 @@ public class KakaoClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     record User(Long id) {
     }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record KakaoError(Integer code) {
+    }
+
 }
