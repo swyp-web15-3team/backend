@@ -7,6 +7,7 @@ import com.team3.collection.CollectionRepository;
 import com.team3.whisky.WhiskyOriginRepository;
 import com.team3.whisky.WhiskyRegionRepository;
 import com.team3.whisky.WhiskyRepository;
+import com.team3.collection.CollectionWhiskyRepository;
 
 import com.team3.auth.token.RefreshToken;
 import com.team3.auth.token.RefreshTokenRepository;
@@ -75,6 +76,9 @@ class TokenHttpTests {
 
     @MockitoBean
     private WhiskyRegionRepository whiskyRegions;
+
+    @MockitoBean
+    private CollectionWhiskyRepository collectionWhiskies;
 
     @Test
     void disabledKakaoLoginDoesNotCreateSession() throws Exception {
