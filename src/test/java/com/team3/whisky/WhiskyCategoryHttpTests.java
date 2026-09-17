@@ -31,6 +31,9 @@ class WhiskyCategoryHttpTests {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
+    @MockitoBean
+    private com.team3.user.UserRepository users;
+
     @Test
     void returnsCategoriesWithoutAuthentication() throws Exception {
         WhiskyCategory singleMalt = category(1L, "싱글 몰트");

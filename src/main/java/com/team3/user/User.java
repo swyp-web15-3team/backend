@@ -54,6 +54,10 @@ public class User {
         return status == UserStatus.PENDING;
     }
 
+    public boolean isActive() {
+        return status == UserStatus.ACTIVE;
+    }
+
     public boolean isDeleted() {
         return deletedAt != null;
     }

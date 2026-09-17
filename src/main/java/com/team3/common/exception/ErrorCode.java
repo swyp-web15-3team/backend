@@ -17,7 +17,9 @@ public enum ErrorCode {
 
     DELETED_USER(HttpStatus.FORBIDDEN, "AUTH_003", "탈퇴한 사용자입니다."),
 
-    INVALID_USER_ID(HttpStatus.BAD_REQUEST, "AUTH_004", "유효하지 않은 사용자 ID입니다.");
+    INVALID_USER_ID(HttpStatus.BAD_REQUEST, "AUTH_004", "유효하지 않은 사용자 ID입니다."),
+
+    ACTIVE_USER_REQUIRED(HttpStatus.FORBIDDEN, "AUTH_005", "가입이 완료된 활성 사용자만 접근할 수 있습니다.");
 
     private final HttpStatus status;
     private final String code;
