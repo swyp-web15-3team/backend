@@ -2,6 +2,7 @@ package com.team3.whisky;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Sort;
@@ -17,4 +18,6 @@ public interface WhiskyRepository extends JpaRepository<Whisky, Long>, WhiskyRep
     @Override
     @EntityGraph(attributePaths = {"category", "origin", "region"})
     Optional<Whisky> findById(Long id);
+
+    long countByIdIn(Set<Long> whiskyIds);
 }
