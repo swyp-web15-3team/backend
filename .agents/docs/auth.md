@@ -6,7 +6,7 @@
 - `POST /auth/kakao` accepts JSON `{"code":"..."}` from the Next.js server, verifies the Kakao user, resolves an internal Long user ID, and returns `accessToken`, `refreshToken`, and `isNewUser`. `isNewUser` is true only when this request creates the user; existing users and concurrent creation conflict recovery return false. Code must be nonblank and at most 2048 characters.
 - Next.js owns OAuth initiation, browser-bound single-use expiring `state` validation, denial handling, and token cookie setting. Exchange a code only after validating state; the backend creates no HTTP session or cookies.
 - Backend `GET /auth/kakao` and `GET /auth/kakao/callback` have been removed. Frontend integration is required before using this flow.
-- Kakao setup: set `KAKAO_LOGIN_ENABLED=true`, `KAKAO_CLIENT_ID` (REST API key), and `KAKAO_REDIRECT_URI` matching the URI registered with Kakao. Set `KAKAO_CLIENT_SECRET` if enabled in Kakao.
+- Kakao setup: set `KAKAO_LOGIN_ENABLED=true`, `KAKAO_CLIENT_ID` (REST API key), `KAKAO_REDIRECT_URI` matching the URI registered with Kakao, and server-only `KAKAO_ADMIN_KEY` with Unlink user permission. Set `KAKAO_CLIENT_SECRET` if enabled in Kakao.
 - Default frontend callback: `http://localhost:3000/auth/kakao/callback`; use HTTPS in production. The authorization request, backend `KAKAO_REDIRECT_URI`, and Kakao registration must use the same URI.
 - Integration contract and manual verification: [Kakao login](../../tools/kakao-login/README.md).
 - Send access tokens as `Authorization: Bearer <accessToken>`; they expire after 15 minutes.
