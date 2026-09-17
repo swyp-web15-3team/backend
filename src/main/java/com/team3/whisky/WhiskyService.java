@@ -5,10 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.team3.whisky.dto.WhiskyListResponse;
-import com.team3.whisky.dto.WhiskyListResponse.CountryPrice;
-import com.team3.whisky.dto.WhiskyListResponse.JpPrice;
-import com.team3.whisky.dto.WhiskyListResponse.NamedRef;
-import com.team3.whisky.dto.WhiskyListResponse.WhiskyCard;
+import com.team3.whisky.dto.WhiskyListResponse.WhiskyItem;
 import com.team3.whisky.dto.WhiskySuggestionsResponse;
 import com.team3.whisky.dto.WhiskySuggestionsResponse.Suggestion;
 
@@ -93,8 +90,8 @@ public class WhiskyService {
         Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
         Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
         collectLowestPrices(found.getContent(), lowestKr, lowestJp);
-        List<WhiskyCard> content = found.getContent().stream()
-            .map(whisky -> toCard(whisky, lowestKr.get(whisky.id()), lowestJp.get(whisky.id())))
+        List<WhiskyItem> content = found.getContent().stream()
+            .map(whisky -> WhiskyItem.from(whisky, lowestKr.get(whisky.id()), lowestJp.get(whisky.id())))
             .toList();
         return new WhiskyListResponse(content, pageNumber, pageSize, found.getTotalElements(), found.getTotalPages());
     }
@@ -200,58 +197,6 @@ public class WhiskyService {
             return left;
         }
         return right;
-    }
-
-    private static WhiskyCard toCard(Whisky whisky, WhiskyLatestPrice kr, WhiskyLatestPrice jp) {
-        return new WhiskyCard(
-            whisky.id(),
-            whisky.name(),
-            whisky.volumeMl(),
-            whisky.abv(),
-            named(whisky.category()),
-            named(whisky.origin()),
-            named(whisky.region()),
-            krPrice(kr),
-            jpPrice(jp),
-            null);
-    }
-
-    private static NamedRef named(WhiskyCategory category) {
-        return new NamedRef(category.id(), category.name());
-    }
-
-    private static NamedRef named(WhiskyOrigin origin) {
-        if (origin == null) {
-            return null;
-        }
-        return new NamedRef(origin.id(), origin.name());
-    }
-
-    private static NamedRef named(WhiskyRegion region) {
-        if (region == null) {
-            return null;
-        }
-        return new NamedRef(region.id(), region.name());
-    }
-
-    private static CountryPrice krPrice(WhiskyLatestPrice price) {
-        if (price == null) {
-            return null;
-        }
-        return new CountryPrice(price.amount(), price.currencyCode(), price.retailerName(), price.collectedAt(), false);
-    }
-
-    private static JpPrice jpPrice(WhiskyLatestPrice price) {
-        if (price == null) {
-            return null;
-        }
-        return new JpPrice(
-            price.amount(),
-            price.currencyCode(),
-            null,
-            price.retailerName(),
-            price.collectedAt(),
-            false);
     }
 
     private static ResponseStatusException badRequest(String detail) {
