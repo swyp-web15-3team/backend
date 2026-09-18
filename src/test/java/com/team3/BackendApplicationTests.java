@@ -1,19 +1,25 @@
 package com.team3;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.TimeZone;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import com.team3.auth.token.RefreshTokenRepository;
 import com.team3.collection.CollectionRepository;
 import com.team3.collection.CollectionWhiskyRepository;
+import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
@@ -44,6 +50,12 @@ class BackendApplicationTests {
     private UserRepository users;
 
     @MockitoBean
+    private UserAgreementRepository agreements;
+
+    @MockitoBean
+    private JpaMetamodelMappingContext jpaMappingContext;
+
+    @MockitoBean
     private WhiskyCategoryRepository whiskyCategories;
 
     @MockitoBean
@@ -64,8 +76,16 @@ class BackendApplicationTests {
     @MockitoBean
     private CollectionWhiskyRepository collectionWhiskies;
 
+    @MockitoBean
+    private PlatformTransactionManager transactionManager;
+
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void usesUtcTimeZone() {
+        assertThat(TimeZone.getDefault()).isEqualTo(TimeZone.getTimeZone("UTC"));
     }
 
     @Test

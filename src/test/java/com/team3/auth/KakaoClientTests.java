@@ -23,7 +23,7 @@ class KakaoClientTests {
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final KakaoClient client = new KakaoClient(builder.build(), new KakaoProperties(true, "app", "secret",
-        "https://frontend.test/auth/kakao/callback"));
+        "https://frontend.test/auth/kakao/callback", "admin-key"));
 
     @Test
     void exchangesEncodedCodeAndUsesBearerTokenToGetIdentity() {
@@ -68,6 +68,47 @@ class KakaoClientTests {
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
             assertFailure(HttpStatus.BAD_GATEWAY);
         }
+    }
+
+    @Test
+    void unlinksMatchingUserIdWithAdminKey() {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("target_id_type", "user_id");
+        form.add("target_id", "123");
+        server.expect(requestTo("https://kapi.kakao.com/v1/user/unlink")).andExpect(method(HttpMethod.POST))
+            .andExpect(header("Authorization", "KakaoAK admin-key")).andExpect(content().formData(form))
+            .andRespond(withSuccess("{\"id\":123}", MediaType.APPLICATION_JSON));
+        client.unlink("123");
+        server.verify();
+    }
+
+    @Test
+    void acceptsAlreadyUnlinkedAndSanitizesUnlinkFailures() {
+        server.expect(requestTo("https://kapi.kakao.com/v1/user/unlink"))
+            .andRespond(withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON)
+                .body("{\"code\":-101}"));
+        client.unlink("123");
+        server.verify();
+        for (String body : new String[]{"provider-secret", "{}", "{\"id\":456}"}) {
+            server.reset();
+            server.expect(requestTo("https://kapi.kakao.com/v1/user/unlink"))
+                .andRespond(body.startsWith("{\"id")
+                    ? withSuccess(body, MediaType.APPLICATION_JSON)
+                    : withStatus(HttpStatus.BAD_REQUEST).body(body));
+            assertThatThrownBy(() -> client.unlink("123")).isInstanceOfSatisfying(ResponseStatusException.class,
+                ex -> {
+                    assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    assertThat(ex.getMessage()).doesNotContain("provider-secret").doesNotContain("admin-key");
+                });
+            server.verify();
+        }
+        server.reset();
+        server.expect(requestTo("https://kapi.kakao.com/v1/user/unlink"))
+            .andRespond(request -> {
+                throw new org.springframework.web.client.RestClientException("provider-secret");
+            });
+        assertThatThrownBy(() -> client.unlink("123")).isInstanceOf(ResponseStatusException.class);
+        server.verify();
     }
 
     private void assertFailure(HttpStatus status) {

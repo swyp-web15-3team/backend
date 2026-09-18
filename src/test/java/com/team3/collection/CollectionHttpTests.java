@@ -23,6 +23,9 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.team3.security.SecurityConfig;
+import com.team3.user.User;
+import com.team3.user.Provider;
+import com.team3.user.UserRepository;
 import com.team3.whisky.WhiskyRepository;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -62,11 +65,45 @@ class CollectionHttpTests {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
+    @MockitoBean
+    private UserRepository users;
+
     @BeforeEach
     void configureAccessToken() {
+        User user = new User(Provider.KAKAO, "42");
+        user.activate();
+        when(users.findById(42L)).thenReturn(Optional.of(user));
         Jwt jwt = Jwt.withTokenValue("access-token").header("alg", "HS256").subject("42")
             .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();
         when(jwtDecoder.decode("access-token")).thenReturn(jwt);
+    }
+
+    @Test
+    void pendingUserCannotReadOrModifyCollections() throws Exception {
+        when(users.findById(42L)).thenReturn(Optional.of(new User(Provider.KAKAO, "42")));
+        for (String method : List.of("GET", "POST", "PATCH", "DELETE")) {
+            String path = method.equals("PATCH") || method.equals("DELETE")
+                ? "/api/v1/collections/12"
+                : "/api/v1/collections";
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .request(org.springframework.http.HttpMethod.valueOf(method), path)
+                .header("Authorization", "Bearer access-token")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"test\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("AUTH_005"));
+        }
+        org.mockito.Mockito.verifyNoInteractions(collections, collectionWhiskies, whiskies);
+    }
+
+    @Test
+    void malformedUserIdIsDeniedWithoutQueryingRepositories() throws Exception {
+        for (String subject : List.of("invalid", "0", "-1", "9223372036854775808")) {
+            when(jwtDecoder.decode("access-token")).thenReturn(Jwt.withTokenValue("access-token")
+                .header("alg", "HS256").subject(subject).build());
+            mvc.perform(get("/api/v1/collections").header("Authorization", "Bearer access-token"))
+                .andExpect(status().isForbidden());
+        }
+        org.mockito.Mockito.verifyNoInteractions(users, collections, collectionWhiskies, whiskies);
     }
 
     @Test

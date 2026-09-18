@@ -1,5 +1,6 @@
 package com.team3.auth;
 
+import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
@@ -26,10 +27,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.util.Optional;
 
+import com.team3.user.Provider;
+import com.team3.user.User;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -60,6 +66,15 @@ class TokenHttpTests {
     private UserRepository users;
 
     @MockitoBean
+    private UserAgreementRepository agreements;
+
+    @MockitoBean
+    private JpaMetamodelMappingContext jpaMappingContext;
+
+    @MockitoBean
+    private PlatformTransactionManager transactionManager;
+
+    @MockitoBean
     private WhiskyCategoryRepository whiskyCategories;
 
     @MockitoBean
@@ -67,6 +82,14 @@ class TokenHttpTests {
 
     @MockitoBean
     private WhiskyRepository whiskies;
+
+    @BeforeEach
+    void setUp() {
+        User user = new User(Provider.KAKAO, "123");
+        user.activate();
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+    }
 
     @MockitoBean
     private PriceHistoryRepository priceHistories;
@@ -112,6 +135,8 @@ class TokenHttpTests {
 
     @Test
     void refreshWorksWithoutAccessTokenAndDoesNotCacheTokens() throws Exception {
+        when(users.findLockedById(1L)).thenReturn(Optional.of(new User(Provider.KAKAO, "pending")));
+        when(repository.findOwnerByTokenHash(anyString())).thenReturn(Optional.of(() -> 1L));
         when(repository.findByTokenHash(anyString())).thenReturn(Optional.of(
             new RefreshToken(1L, "hash", Instant.now().plusSeconds(3600))));
         mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
@@ -122,6 +147,36 @@ class TokenHttpTests {
             .andExpect(jsonPath("$.data.accessToken").isString())
             .andExpect(jsonPath("$.data.refreshToken").isString())
             .andExpect(jsonPath("$.data.expiresIn").doesNotExist());
+    }
+
+    @Test
+    void sameTokenRequiresSignUpAndStopsWorkingAfterWithdrawalOrUserRemoval() throws Exception {
+        User user = new User(Provider.KAKAO, "pending");
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+        String bearer = "Bearer " + tokens.issue(1L).accessToken();
+
+        mvc.perform(get("/api/v1/test/me").header(HttpHeaders.AUTHORIZATION, bearer))
+            .andExpect(status().isForbidden())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("AUTH_005"))
+            .andExpect(jsonPath("$.status").value(403))
+            .andExpect(jsonPath("$.instance").value("/api/v1/test/me"));
+        mvc.perform(get("/actuator/health").header(HttpHeaders.AUTHORIZATION, bearer))
+            .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/auth/sign-up").header(HttpHeaders.AUTHORIZATION, bearer)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"ageOver14Agreed\":true,\"termsOfServiceAgreed\":true,\"privacyPolicyAgreed\":true}"))
+            .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/test/me").header(HttpHeaders.AUTHORIZATION, bearer))
+            .andExpect(status().isOk()).andExpect(content().string("1"));
+
+        user.delete(Instant.now());
+        mvc.perform(get("/api/v1/test/me").header(HttpHeaders.AUTHORIZATION, bearer))
+            .andExpect(status().isForbidden());
+        when(users.findById(1L)).thenReturn(Optional.empty());
+        mvc.perform(get("/api/v1/test/me").header(HttpHeaders.AUTHORIZATION, bearer))
+            .andExpect(status().isForbidden());
     }
 
     @Test

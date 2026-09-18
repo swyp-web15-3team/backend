@@ -2,6 +2,7 @@ package com.team3.auth;
 
 import com.team3.user.User;
 import com.team3.user.Provider;
+import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,6 +37,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,7 +48,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
             + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
-        "auth.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "auth.kakao.enabled=true"
+        "auth.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "auth.kakao.enabled=true",
+        "auth.kakao.admin-key=admin"
 })
 @AutoConfigureMockMvc
 class KakaoHttpTests {
@@ -54,12 +59,23 @@ class KakaoHttpTests {
     private ObjectMapper json;
     @Autowired
     private JwtDecoder decoder;
+    @Autowired
+    private AuthService tokens;
     @MockitoBean
     private KakaoClient kakao;
     @MockitoBean
     private UserRepository users;
     @MockitoBean
     private RefreshTokenRepository refreshTokens;
+    @MockitoBean
+    private UserAgreementRepository agreements;
+
+    @MockitoBean
+    private JpaMetamodelMappingContext jpaMappingContext;
+
+    @MockitoBean
+    private PlatformTransactionManager transactionManager;
+
     @MockitoBean
     private WhiskyCategoryRepository whiskyCategories;
     @MockitoBean
@@ -84,6 +100,7 @@ class KakaoHttpTests {
         User user = mock(User.class);
         when(user.id()).thenReturn(id);
         when(users.findByProviderAndProviderId(Provider.KAKAO, "123")).thenReturn(Optional.of(user));
+        when(users.findLockedById(id)).thenReturn(Optional.of(user));
         MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
             .content("{\"code\":\"code\"}"))
             .andExpect(status().isOk())
@@ -106,7 +123,9 @@ class KakaoHttpTests {
         when(kakao.userId("code")).thenReturn(123L);
         User user = mock(User.class);
         when(user.id()).thenReturn(42L);
+        when(user.isPending()).thenReturn(true);
         when(users.saveAndFlush(any(User.class))).thenReturn(user);
+        when(users.findLockedById(42L)).thenReturn(Optional.of(user));
         MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
             .content("{\"code\":\"code\"}"))
             .andExpect(status().isOk())
@@ -151,5 +170,20 @@ class KakaoHttpTests {
         mvc.perform(get("/api/v1/auth/kakao/callback").param("code", "code"))
             .andExpect(status().isUnauthorized());
         verifyNoInteractions(kakao, users, refreshTokens);
+    }
+
+    @Test
+    void withdrawsAuthenticatedUserAndReturnsNoContentOnRepeat() throws Exception {
+        User user = new User(Provider.KAKAO, "123");
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+        String accessToken = tokens.issue(1L).accessToken();
+
+        mvc.perform(delete("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isNoContent());
+        mvc.perform(delete("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isNoContent());
+        mvc.perform(delete("/api/v1/auth/withdrawal")).andExpect(status().isUnauthorized());
+        verify(kakao).unlink("123");
     }
 }

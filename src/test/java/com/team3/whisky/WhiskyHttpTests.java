@@ -58,6 +58,9 @@ class WhiskyHttpTests {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
+    @MockitoBean
+    private com.team3.user.UserRepository users;
+
     @Test
     void returnsSuggestionsWithoutAuthentication() throws Exception {
         Whisky lagavulin = whisky(1L, "라가불린");

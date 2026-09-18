@@ -86,6 +86,7 @@ jobs:
       KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
       KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
       KAKAO_REDIRECT_URI: ${{ secrets.KAKAO_REDIRECT_URI }}
+      KAKAO_ADMIN_KEY: ${{ secrets.KAKAO_ADMIN_KEY }}
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -94,7 +95,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           port: ${{ secrets.SSH_PORT }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_PATH,IMAGE_REF,DB_HOST,POSTGRES_DB,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_PORT,JWT_SECRET,KAKAO_LOGIN_ENABLED,KAKAO_CLIENT_ID,KAKAO_CLIENT_SECRET,KAKAO_REDIRECT_URI
+          envs: DEPLOY_PATH,IMAGE_REF,DB_HOST,POSTGRES_DB,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_PORT,JWT_SECRET,KAKAO_LOGIN_ENABLED,KAKAO_CLIENT_ID,KAKAO_CLIENT_SECRET,KAKAO_REDIRECT_URI,KAKAO_ADMIN_KEY
           command_timeout: 10m
           script: |
             set -eu
