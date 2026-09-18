@@ -8,6 +8,7 @@ import com.team3.whisky.dto.WhiskyDetailResponse;
 import com.team3.whisky.dto.WhiskyDetailResponse.SaleProductItem;
 import com.team3.whisky.dto.WhiskyListResponse;
 import com.team3.whisky.dto.WhiskyListResponse.WhiskyItem;
+import com.team3.whisky.dto.WhiskyRelatedResponse;
 import com.team3.whisky.dto.WhiskySuggestionsResponse;
 import com.team3.whisky.dto.WhiskySuggestionsResponse.Suggestion;
 
@@ -31,6 +32,7 @@ public class WhiskyService {
     private static final int MAX_PAGE_SIZE = 50;
     private static final Limit SUGGESTION_LIMIT = Limit.of(10);
     private static final Sort SUGGESTION_SORT = Sort.by("id").ascending();
+    private static final int RELATED_LIMIT = 10;
 
     private final WhiskyRepository whiskies;
     private final WhiskyCategoryRepository categories;
@@ -113,6 +115,27 @@ public class WhiskyService {
             .map(saleProduct -> SaleProductItem.from(saleProduct, latestBySaleProduct.get(saleProduct.id())))
             .toList();
         return WhiskyDetailResponse.from(whisky, lowestKr.get(whiskyId), lowestJp.get(whiskyId), items);
+    }
+
+    public WhiskyRelatedResponse getRelated(Long whiskyId) {
+        Whisky whisky = whiskies.findById(whiskyId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "위스키를 찾을 수 없습니다."));
+        Long categoryId = whisky.category() == null ? null : whisky.category().id();
+        Long originId = whisky.origin() == null ? null : whisky.origin().id();
+        List<Whisky> related = List.of();
+        if (categoryId != null) {
+            related = whiskies.findRelated(whiskyId, categoryId, null, RELATED_LIMIT);
+        }
+        if (related.isEmpty() && originId != null) {
+            related = whiskies.findRelated(whiskyId, null, originId, RELATED_LIMIT);
+        }
+        Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
+        Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
+        collectLowestPrices(related, lowestKr, lowestJp);
+        List<WhiskyItem> items = related.stream()
+            .map(item -> WhiskyItem.from(item, lowestKr.get(item.id()), lowestJp.get(item.id())))
+            .toList();
+        return new WhiskyRelatedResponse(items);
     }
 
     private static String keyword(String query) {
