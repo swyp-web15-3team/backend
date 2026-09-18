@@ -4,6 +4,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -348,6 +350,91 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.detail").value("위스키 ID가 올바르지 않습니다."));
     }
 
+    @Test
+    void returnsRelatedWhiskiesWithoutAuthentication() throws Exception {
+        Whisky source = listedWhisky();
+        Whisky related = whiskyCard(102L, "Lagavulin 8", new BigDecimal("48.0"));
+        when(whiskies.findById(101L)).thenReturn(Optional.of(source));
+        when(whiskies.findRelated(101L, 1L, null, 10)).thenReturn(List.of(related));
+        when(prices.findLatestAvailablePrices(List.of(102L))).thenReturn(List.of(
+            new WhiskyLatestPrice(
+                102L, new BigDecimal("120000"), "KRW", "KR", "롯데면세점", COLLECTED_AT, 1L),
+            new WhiskyLatestPrice(
+                102L, new BigDecimal("6800"), "JPY", "JP", "나리타 면세", COLLECTED_AT, 2L)));
+
+        mvc.perform(get("/api/v1/whiskies/101/related"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").doesNotExist())
+            .andExpect(jsonPath("$.data.whiskies.length()").value(1))
+            .andExpect(jsonPath("$.data.whiskies[0].id").value(102))
+            .andExpect(jsonPath("$.data.whiskies[0].name").value("Lagavulin 8"))
+            .andExpect(jsonPath("$.data.whiskies[0].volumeMl").value(700))
+            .andExpect(jsonPath("$.data.whiskies[0].abv").value(48.0))
+            .andExpect(jsonPath("$.data.whiskies[0].category.id").value(1))
+            .andExpect(jsonPath("$.data.whiskies[0].category.name").value("싱글 몰트"))
+            .andExpect(jsonPath("$.data.whiskies[0].kr.amount").value(120000))
+            .andExpect(jsonPath("$.data.whiskies[0].kr.currency").value("KRW"))
+            .andExpect(jsonPath("$.data.whiskies[0].kr.retailerName").value("롯데면세점"))
+            .andExpect(jsonPath("$.data.whiskies[0].kr.collectedAt").value("2026-09-07T18:00:00Z"))
+            .andExpect(jsonPath("$.data.whiskies[0].kr.stale").value(false))
+            .andExpect(jsonPath("$.data.whiskies[0].jp.amount").value(6800))
+            .andExpect(jsonPath("$.data.whiskies[0].jp.currency").value("JPY"))
+            .andExpect(jsonPath("$.data.whiskies[0].jp.amountKrw").isEmpty())
+            .andExpect(jsonPath("$.data.whiskies[0].jp.retailerName").value("나리타 면세"))
+            .andExpect(jsonPath("$.data.whiskies[0].jp.stale").value(false))
+            .andExpect(jsonPath("$.data.whiskies[0].comparison").isEmpty());
+        verify(whiskies, never()).findRelated(101L, null, 1L, 10);
+    }
+
+    @Test
+    void returnsRelatedByOriginWhenCategoryIsEmpty() throws Exception {
+        Whisky source = listedWhisky();
+        Whisky related = whiskyCard(103L, "Talisker 10", new BigDecimal("45.8"));
+        when(whiskies.findById(101L)).thenReturn(Optional.of(source));
+        when(whiskies.findRelated(101L, 1L, null, 10)).thenReturn(List.of());
+        when(whiskies.findRelated(101L, null, 1L, 10)).thenReturn(List.of(related));
+        when(prices.findLatestAvailablePrices(List.of(103L))).thenReturn(List.of());
+
+        mvc.perform(get("/api/v1/whiskies/101/related"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.whiskies.length()").value(1))
+            .andExpect(jsonPath("$.data.whiskies[0].id").value(103))
+            .andExpect(jsonPath("$.data.whiskies[0].name").value("Talisker 10"))
+            .andExpect(jsonPath("$.data.whiskies[0].kr").isEmpty())
+            .andExpect(jsonPath("$.data.whiskies[0].jp").isEmpty());
+    }
+
+    @Test
+    void returnsEmptyRelatedWhiskiesWhenNoneExist() throws Exception {
+        Whisky source = listedWhisky();
+        when(whiskies.findById(101L)).thenReturn(Optional.of(source));
+        when(whiskies.findRelated(101L, 1L, null, 10)).thenReturn(List.of());
+        when(whiskies.findRelated(101L, null, 1L, 10)).thenReturn(List.of());
+
+        mvc.perform(get("/api/v1/whiskies/101/related"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.whiskies").isEmpty());
+    }
+
+    @Test
+    void rejectsUnknownWhiskyForRelated() throws Exception {
+        when(whiskies.findById(101L)).thenReturn(Optional.empty());
+
+        mvc.perform(get("/api/v1/whiskies/101/related"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.status").value(404))
+            .andExpect(jsonPath("$.detail").value("위스키를 찾을 수 없습니다."))
+            .andExpect(jsonPath("$.instance").value("/api/v1/whiskies/101/related"));
+    }
+
+    @Test
+    void rejectsNonNumericWhiskyIdForRelated() throws Exception {
+        mvc.perform(get("/api/v1/whiskies/abc/related"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.detail").value("위스키 ID가 올바르지 않습니다."));
+    }
+
     private Whisky whisky(Long id, String name) {
         Whisky whisky = mock(Whisky.class);
         when(whisky.id()).thenReturn(id);
@@ -356,6 +443,10 @@ class WhiskyHttpTests {
     }
 
     private Whisky listedWhisky() {
+        return whiskyCard(101L, "Lagavulin 16", new BigDecimal("43.0"));
+    }
+
+    private Whisky whiskyCard(Long id, String name, BigDecimal abv) {
         WhiskyCategory category = mock(WhiskyCategory.class);
         when(category.id()).thenReturn(1L);
         when(category.name()).thenReturn("싱글 몰트");
@@ -366,10 +457,10 @@ class WhiskyHttpTests {
         when(region.id()).thenReturn(10L);
         when(region.name()).thenReturn("아일라");
         Whisky whisky = mock(Whisky.class);
-        when(whisky.id()).thenReturn(101L);
-        when(whisky.name()).thenReturn("Lagavulin 16");
+        when(whisky.id()).thenReturn(id);
+        when(whisky.name()).thenReturn(name);
         when(whisky.volumeMl()).thenReturn(700);
-        when(whisky.abv()).thenReturn(new BigDecimal("43.0"));
+        when(whisky.abv()).thenReturn(abv);
         when(whisky.category()).thenReturn(category);
         when(whisky.origin()).thenReturn(origin);
         when(whisky.region()).thenReturn(region);

@@ -32,6 +32,32 @@ public class WhiskyRepositoryImpl implements WhiskyRepositoryCustom {
     }
 
     @Override
+    public List<Whisky> findRelated(Long excludedWhiskyId, Long categoryId, Long originId, int limit) {
+        if (categoryId == null && originId == null) {
+            return List.of();
+        }
+        BooleanBuilder where = new BooleanBuilder();
+        where.and(WHISKY.id.ne(excludedWhiskyId));
+        if (categoryId != null) {
+            where.and(WHISKY.category.id.eq(categoryId));
+        }
+        if (originId != null) {
+            where.and(WHISKY.origin.id.eq(originId));
+        }
+        return queryFactory.selectFrom(WHISKY)
+            .join(WHISKY.category, CATEGORY)
+            .fetchJoin()
+            .leftJoin(WHISKY.origin, ORIGIN)
+            .fetchJoin()
+            .leftJoin(WHISKY.region, REGION)
+            .fetchJoin()
+            .where(where)
+            .orderBy(WHISKY.id.asc())
+            .limit(limit)
+            .fetch();
+    }
+
+    @Override
     public Page<Whisky> search(
         String keyword,
         Long categoryId,

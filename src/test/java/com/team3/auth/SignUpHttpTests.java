@@ -8,6 +8,7 @@ import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
 import com.team3.whisky.PriceHistoryRepository;
+import com.team3.whisky.SaleProductRepository;
 import com.team3.whisky.WhiskyOriginRepository;
 import com.team3.whisky.WhiskyRegionRepository;
 import com.team3.whisky.WhiskyRepository;
@@ -48,8 +49,8 @@ import org.mockito.ArgumentCaptor;
 })
 @AutoConfigureMockMvc
 @MockitoBean(types = {JpaMetamodelMappingContext.class, CollectionRepository.class, CollectionWhiskyRepository.class,
-        PriceHistoryRepository.class, WhiskyOriginRepository.class, WhiskyRegionRepository.class,
-        WhiskyRepository.class, PlatformTransactionManager.class})
+        PriceHistoryRepository.class, SaleProductRepository.class, WhiskyOriginRepository.class,
+        WhiskyRegionRepository.class, WhiskyRepository.class, PlatformTransactionManager.class})
 class SignUpHttpTests {
 
     private static final String BODY = "{\"ageOver14Agreed\":true,\"termsOfServiceAgreed\":true,"

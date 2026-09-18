@@ -3,6 +3,7 @@ package com.team3.whisky;
 import com.team3.common.ApiResponse;
 import com.team3.whisky.dto.WhiskyDetailResponse;
 import com.team3.whisky.dto.WhiskyListResponse;
+import com.team3.whisky.dto.WhiskyRelatedResponse;
 import com.team3.whisky.dto.WhiskySuggestionsResponse;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,5 +45,10 @@ public class WhiskyController {
     @GetMapping("/api/v1/whiskies/{whiskyId}")
     public ApiResponse<WhiskyDetailResponse> getWhisky(@PathVariable Long whiskyId) {
         return ApiResponse.of(whiskies.getWhisky(whiskyId));
+    }
+
+    @GetMapping("/api/v1/whiskies/{whiskyId}/related")
+    public ApiResponse<WhiskyRelatedResponse> getRelated(@PathVariable Long whiskyId) {
+        return ApiResponse.of(whiskies.getRelated(whiskyId));
     }
 }
