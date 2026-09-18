@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.team3.whisky.dto.WhiskyDetailResponse;
+import com.team3.whisky.dto.WhiskyDetailResponse.SaleProductItem;
 import com.team3.whisky.dto.WhiskyListResponse;
 import com.team3.whisky.dto.WhiskyListResponse.WhiskyItem;
 import com.team3.whisky.dto.WhiskySuggestionsResponse;
@@ -35,18 +37,21 @@ public class WhiskyService {
     private final WhiskyOriginRepository origins;
     private final WhiskyRegionRepository regions;
     private final PriceHistoryRepository prices;
+    private final SaleProductRepository saleProducts;
 
     public WhiskyService(
         WhiskyRepository whiskies,
         WhiskyCategoryRepository categories,
         WhiskyOriginRepository origins,
         WhiskyRegionRepository regions,
-        PriceHistoryRepository prices) {
+        PriceHistoryRepository prices,
+        SaleProductRepository saleProducts) {
         this.whiskies = whiskies;
         this.categories = categories;
         this.origins = origins;
         this.regions = regions;
         this.prices = prices;
+        this.saleProducts = saleProducts;
     }
 
     public WhiskySuggestionsResponse getSuggestions(String query) {
@@ -94,6 +99,20 @@ public class WhiskyService {
             .map(whisky -> WhiskyItem.from(whisky, lowestKr.get(whisky.id()), lowestJp.get(whisky.id())))
             .toList();
         return new WhiskyListResponse(content, pageNumber, pageSize, found.getTotalElements(), found.getTotalPages());
+    }
+
+    public WhiskyDetailResponse getWhisky(Long whiskyId) {
+        Whisky whisky = whiskies.findById(whiskyId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "위스키를 찾을 수 없습니다."));
+        List<SaleProduct> foundSaleProducts = saleProducts.findByWhiskyIdOrderByIdAsc(whiskyId);
+        Map<Long, WhiskyLatestPrice> latestBySaleProduct = latestPrices(foundSaleProducts);
+        Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
+        Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
+        collectLowestPrices(List.of(whisky), lowestKr, lowestJp);
+        List<SaleProductItem> items = foundSaleProducts.stream()
+            .map(saleProduct -> SaleProductItem.from(saleProduct, latestBySaleProduct.get(saleProduct.id())))
+            .toList();
+        return WhiskyDetailResponse.from(whisky, lowestKr.get(whiskyId), lowestJp.get(whiskyId), items);
     }
 
     private static String keyword(String query) {
@@ -166,6 +185,18 @@ public class WhiskyService {
         if (originId != null && !originId.equals(region.origin().id())) {
             throw badRequest("생산 지역과 원산지가 일치하지 않습니다.");
         }
+    }
+
+    private Map<Long, WhiskyLatestPrice> latestPrices(List<SaleProduct> foundSaleProducts) {
+        if (foundSaleProducts.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> saleProductIds = foundSaleProducts.stream().map(SaleProduct::id).toList();
+        Map<Long, WhiskyLatestPrice> latestBySaleProduct = new HashMap<>();
+        for (WhiskyLatestPrice price : prices.findLatestPrices(saleProductIds)) {
+            latestBySaleProduct.put(price.saleProductId(), price);
+        }
+        return latestBySaleProduct;
     }
 
     private void collectLowestPrices(

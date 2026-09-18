@@ -24,19 +24,26 @@ public class Retailer {
     @Column(name = "is_duty_free", nullable = false)
     private boolean dutyFree;
 
+    @Column(length = 255)
+    private String address;
+
     protected Retailer() {
     }
 
-    public Retailer(String name, String countryCode, boolean dutyFree) {
+    public Retailer(String name, String countryCode, boolean dutyFree, String address) {
         if (name == null || name.isBlank() || name.length() > 150) {
             throw new IllegalArgumentException("A retailer name of 1 to 150 characters is required.");
         }
         if (!"KR".equals(countryCode) && !"JP".equals(countryCode)) {
             throw new IllegalArgumentException("A retailer country must be KR or JP.");
         }
+        if (address != null && address.length() > 255) {
+            throw new IllegalArgumentException("An address must be at most 255 characters.");
+        }
         this.name = name;
         this.countryCode = countryCode;
         this.dutyFree = dutyFree;
+        this.address = address;
     }
 
     public Long id() {
@@ -53,5 +60,9 @@ public class Retailer {
 
     public boolean isDutyFree() {
         return dutyFree;
+    }
+
+    public String address() {
+        return address;
     }
 }

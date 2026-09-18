@@ -26,18 +26,25 @@ public class SaleProduct {
     @JoinColumn(name = "retailer_id", nullable = false)
     private Retailer retailer;
 
+    @Column(name = "product_url", nullable = false)
+    private String productUrl;
+
     @Column(name = "is_sold_out")
     private Boolean soldOut;
 
     protected SaleProduct() {
     }
 
-    public SaleProduct(Whisky whisky, Retailer retailer, Boolean soldOut) {
+    public SaleProduct(Whisky whisky, Retailer retailer, String productUrl, Boolean soldOut) {
         if (retailer == null) {
             throw new IllegalArgumentException("A retailer is required.");
         }
+        if (productUrl == null || productUrl.isBlank()) {
+            throw new IllegalArgumentException("A product URL is required.");
+        }
         this.whisky = whisky;
         this.retailer = retailer;
+        this.productUrl = productUrl;
         this.soldOut = soldOut;
     }
 
@@ -51,6 +58,10 @@ public class SaleProduct {
 
     public Retailer retailer() {
         return retailer;
+    }
+
+    public String productUrl() {
+        return productUrl;
     }
 
     public Boolean isSoldOut() {
