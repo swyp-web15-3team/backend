@@ -19,6 +19,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import com.team3.auth.token.RefreshTokenRepository;
 import com.team3.collection.CollectionRepository;
 import com.team3.collection.CollectionWhiskyRepository;
+import com.team3.curation.CurationRepository;
+import com.team3.curation.CurationWhiskyRepository;
 import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;
@@ -79,6 +81,12 @@ class BackendApplicationTests {
 
     @MockitoBean
     private CollectionWhiskyRepository collectionWhiskies;
+
+    @MockitoBean
+    private CurationRepository curationRepository;
+
+    @MockitoBean
+    private CurationWhiskyRepository curationWhiskies;
 
     @MockitoBean
     private PlatformTransactionManager transactionManager;
