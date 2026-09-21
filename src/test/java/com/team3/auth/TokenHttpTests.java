@@ -7,6 +7,8 @@ import com.team3.whisky.SaleProductRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
 import com.team3.collection.CollectionRepository;
 import com.team3.collection.CollectionWhiskyRepository;
+import com.team3.planner.PlannerItemRepository;
+import com.team3.planner.PlannerRepository;
 import com.team3.curation.CurationRepository;
 import com.team3.curation.CurationWhiskyRepository;
 import com.team3.whisky.WhiskyOriginRepository;
@@ -108,6 +110,12 @@ class TokenHttpTests {
 
     @MockitoBean
     private CollectionWhiskyRepository collectionWhiskies;
+
+    @MockitoBean
+    private PlannerRepository planners;
+
+    @MockitoBean
+    private PlannerItemRepository plannerItems;
 
     @MockitoBean
     private CurationRepository curationRepository;

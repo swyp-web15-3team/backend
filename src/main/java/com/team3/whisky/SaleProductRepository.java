@@ -1,5 +1,6 @@
 package com.team3.whisky;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -9,4 +10,7 @@ public interface SaleProductRepository extends JpaRepository<SaleProduct, Long> 
 
     @EntityGraph(attributePaths = "retailer")
     List<SaleProduct> findByWhiskyIdOrderByIdAsc(Long whiskyId);
+
+    @EntityGraph(attributePaths = {"whisky", "retailer"})
+    List<SaleProduct> findByIdIn(Collection<Long> ids);
 }

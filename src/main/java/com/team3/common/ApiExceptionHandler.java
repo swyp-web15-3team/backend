@@ -65,6 +65,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ErrorCode errorCode = ex.getErrorCode();
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(errorCode.getStatus(), errorCode.getMessage());
         problem.setProperty("code", errorCode.getCode());
+        ex.getProperties().forEach(problem::setProperty);
         return handleExceptionInternal(ex, problem, new HttpHeaders(), errorCode.getStatus(), request);
     }
 
