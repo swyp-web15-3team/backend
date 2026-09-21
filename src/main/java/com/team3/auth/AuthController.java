@@ -5,14 +5,18 @@ import com.team3.auth.dto.KakaoLoginResponse;
 import com.team3.auth.dto.LogoutRequest;
 import com.team3.auth.dto.RefreshRequest;
 import com.team3.auth.dto.RefreshResponse;
+import com.team3.auth.dto.SignUpRequest;
 import com.team3.user.Provider;
 import com.team3.common.ApiResponse;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,6 +53,26 @@ public class AuthController {
         AuthService.TokenPair pair = tokens.issue(user.userId());
         return ApiResponse.of(
             new KakaoLoginResponse(pair.accessToken(), pair.refreshToken(), user.isNewUser()));
+    }
+
+    @PostMapping("/sign-up")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void signUp(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody SignUpRequest request) {
+        tokens.signUp(userId(jwt), request.marketingAgreed());
+    }
+
+    @DeleteMapping("/withdrawal")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdraw(@AuthenticationPrincipal Jwt jwt) {
+        tokens.withdraw(userId(jwt), kakaoClient());
+    }
+
+    private long userId(Jwt jwt) {
+        try {
+            return Long.parseLong(jwt.getSubject());
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user.");
+        }
     }
 
     private KakaoClient kakaoClient() {

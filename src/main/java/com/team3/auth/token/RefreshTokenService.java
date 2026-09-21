@@ -1,5 +1,6 @@
 package com.team3.auth.token;
 
+import com.team3.auth.exception.InvalidUserIdException;
 import com.team3.auth.jwt.JwtProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -32,16 +33,21 @@ public class RefreshTokenService {
 
     public String issue(Long userId) {
         if (userId == null || userId <= 0) {
-            throw new IllegalArgumentException("A positive user ID is required.");
+            throw new InvalidUserIdException();
         }
         String refresh = newRefreshToken();
         repository.save(new RefreshToken(userId, hash(refresh), clock.instant().plus(refreshTtl)));
         return refresh;
     }
 
-    public Rotation refresh(String rawToken) {
+    public Long userId(String rawToken) {
+        return repository.findOwnerByTokenHash(hash(rawToken)).map(owner -> owner.getUserId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token."));
+    }
+
+    public Rotation refresh(String rawToken, Long userId) {
         RefreshToken stored = repository.findByTokenHash(hash(rawToken))
-            .filter(token -> token.expiresAt().isAfter(clock.instant()))
+            .filter(token -> userId.equals(token.userId()) && token.expiresAt().isAfter(clock.instant()))
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token."));
         String refresh = newRefreshToken();
         stored.rotate(hash(refresh));
@@ -50,6 +56,10 @@ public class RefreshTokenService {
 
     public void logout(String rawToken) {
         repository.findByTokenHash(hash(rawToken)).ifPresent(repository::delete);
+    }
+
+    public void revokeAll(Long userId) {
+        repository.deleteByUserId(userId);
     }
 
     private String newRefreshToken() {

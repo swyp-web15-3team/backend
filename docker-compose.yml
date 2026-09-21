@@ -29,6 +29,7 @@ services:
       KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
       KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
       KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:-http://localhost:3000/auth/kakao/callback}
+      KAKAO_ADMIN_KEY: ${KAKAO_ADMIN_KEY:-}
     ports:
       - "${APP_PORT}:8080"
     depends_on:
