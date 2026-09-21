@@ -8,10 +8,12 @@ import com.team3.planner.dto.PlannerResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -36,5 +38,14 @@ public class PlannerController {
         @AuthenticationPrincipal Jwt jwt,
         @RequestBody AddPlannerItemsRequest request) {
         return ApiResponse.of(planners.addItems(Long.valueOf(jwt.getSubject()), request));
+    }
+
+    @DeleteMapping("/items")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteItems(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestParam(required = false) String listType,
+        @RequestParam(required = false) Long saleProductId) {
+        planners.deleteItems(Long.valueOf(jwt.getSubject()), listType, saleProductId);
     }
 }
