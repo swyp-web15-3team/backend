@@ -13,6 +13,7 @@ import com.team3.planner.dto.AddPlannerItemsRequest;
 import com.team3.planner.dto.AddPlannerItemsRequest.Item;
 import com.team3.planner.dto.AddPlannerItemsResponse;
 import com.team3.planner.dto.AddPlannerItemsResponse.PlannerItemResponse;
+import com.team3.planner.dto.PlannerResponse;
 import com.team3.planner.exception.PlannerException;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.SaleProduct;
@@ -68,6 +69,23 @@ public class PlannerService {
             latestPrices.put(item.product().id(), item.price());
         }
         return new AddPlannerItemsResponse(PlannerItemResponse.from(created, products, latestPrices));
+    }
+
+    @Transactional(readOnly = true)
+    public PlannerResponse getPlanner(Long userId) {
+        Optional<Planner> planner = planners.findByUserId(userId);
+        if (planner.isEmpty()) {
+            return PlannerResponse.empty();
+        }
+        List<PlannerItem> found = items.findByPlannerIdOrderByIdAsc(planner.get().id());
+        if (found.isEmpty()) {
+            return PlannerResponse.empty();
+        }
+        List<Long> saleProductIds = new ArrayList<>();
+        for (PlannerItem item : found) {
+            saleProductIds.add(item.saleProductId());
+        }
+        return PlannerResponse.from(found, loadProducts(saleProductIds), loadYenPrices(saleProductIds));
     }
 
     private List<PreparedItem> prepare(List<Item> requested) {
