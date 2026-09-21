@@ -13,13 +13,10 @@ import com.team3.planner.dto.AddPlannerItemsRequest;
 import com.team3.planner.dto.AddPlannerItemsRequest.Item;
 import com.team3.planner.dto.AddPlannerItemsResponse;
 import com.team3.planner.dto.AddPlannerItemsResponse.PlannerItemResponse;
-import com.team3.planner.dto.AddPlannerItemsResponse.Price;
 import com.team3.planner.exception.PlannerException;
 import com.team3.whisky.PriceHistoryRepository;
-import com.team3.whisky.Retailer;
 import com.team3.whisky.SaleProduct;
 import com.team3.whisky.SaleProductRepository;
-import com.team3.whisky.Whisky;
 import com.team3.whisky.WhiskyLatestPrice;
 
 import org.hibernate.exception.ConstraintViolationException;
@@ -64,7 +61,13 @@ public class PlannerService {
         List<PreparedItem> prepared = prepare(requested);
         Planner planner = findOrCreatePlanner(userId);
         List<PlannerItem> created = items.saveAll(toRows(planner.id(), prepared));
-        return new AddPlannerItemsResponse(toResponses(created, prepared));
+        Map<Long, SaleProduct> products = new HashMap<>();
+        Map<Long, WhiskyLatestPrice> latestPrices = new HashMap<>();
+        for (PreparedItem item : prepared) {
+            products.put(item.product().id(), item.product());
+            latestPrices.put(item.product().id(), item.price());
+        }
+        return new AddPlannerItemsResponse(PlannerItemResponse.from(created, products, latestPrices));
     }
 
     private List<PreparedItem> prepare(List<Item> requested) {
@@ -183,42 +186,6 @@ public class PlannerService {
             }
         }
         return rows;
-    }
-
-    private List<PlannerItemResponse> toResponses(List<PlannerItem> created, List<PreparedItem> prepared) {
-        Map<Long, PreparedItem> bySaleProductId = new HashMap<>();
-        for (PreparedItem item : prepared) {
-            bySaleProductId.put(item.product().id(), item);
-        }
-        List<PlannerItemResponse> responses = new ArrayList<>();
-        for (PlannerItem item : created) {
-            responses.add(toResponse(item, bySaleProductId.get(item.saleProductId())));
-        }
-        return responses;
-    }
-
-    private PlannerItemResponse toResponse(PlannerItem item, PreparedItem prepared) {
-        SaleProduct product = prepared.product();
-        Whisky whisky = product.whisky();
-        Retailer retailer = product.retailer();
-        WhiskyLatestPrice latestPrice = prepared.price();
-        return new PlannerItemResponse(
-            item.id(),
-            item.listType(),
-            product.id(),
-            whisky.id(),
-            whisky.name(),
-            whisky.volumeMl(),
-            whisky.abv(),
-            retailer.id(),
-            retailer.name(),
-            retailer.countryCode(),
-            retailer.isDutyFree(),
-            product.productUrl(),
-            false,
-            new Price(latestPrice.amount(), latestPrice.currencyCode(), null, latestPrice.collectedAt(), false),
-            null,
-            false);
     }
 
     private record PreparedItem(
