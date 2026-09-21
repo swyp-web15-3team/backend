@@ -14,6 +14,8 @@ import com.team3.whisky.WhiskyRegionRepository;
 import com.team3.whisky.WhiskyRepository;
 import com.team3.collection.CollectionRepository;
 import com.team3.collection.CollectionWhiskyRepository;
+import com.team3.curation.CurationRepository;
+import com.team3.curation.CurationWhiskyRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -49,6 +51,7 @@ import org.mockito.ArgumentCaptor;
 })
 @AutoConfigureMockMvc
 @MockitoBean(types = {JpaMetamodelMappingContext.class, CollectionRepository.class, CollectionWhiskyRepository.class,
+        CurationRepository.class, CurationWhiskyRepository.class,
         PriceHistoryRepository.class, SaleProductRepository.class, WhiskyOriginRepository.class,
         WhiskyRegionRepository.class, WhiskyRepository.class, PlatformTransactionManager.class})
 class SignUpHttpTests {

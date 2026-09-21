@@ -8,10 +8,12 @@ import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.SaleProductRepository;
 import com.team3.whisky.WhiskyCategoryRepository;
 import com.team3.collection.CollectionRepository;
+import com.team3.collection.CollectionWhiskyRepository;
+import com.team3.curation.CurationRepository;
+import com.team3.curation.CurationWhiskyRepository;
 import com.team3.whisky.WhiskyOriginRepository;
 import com.team3.whisky.WhiskyRegionRepository;
 import com.team3.whisky.WhiskyRepository;
-import com.team3.collection.CollectionWhiskyRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -95,6 +97,12 @@ class KakaoHttpTests {
 
     @MockitoBean
     private CollectionWhiskyRepository collectionWhiskies;
+
+    @MockitoBean
+    private CurationRepository curationRepository;
+
+    @MockitoBean
+    private CurationWhiskyRepository curationWhiskies;
 
     @Test
     void exchangesCodeWithoutSessionOrCookies() throws Exception {
