@@ -9,6 +9,8 @@ import com.team3.collection.CollectionRepository;
 import com.team3.collection.CollectionWhiskyRepository;
 import com.team3.planner.PlannerItemRepository;
 import com.team3.planner.PlannerRepository;
+import com.team3.curation.CurationRepository;
+import com.team3.curation.CurationWhiskyRepository;
 import com.team3.whisky.WhiskyOriginRepository;
 import com.team3.whisky.WhiskyRegionRepository;
 import com.team3.whisky.WhiskyRepository;
@@ -114,6 +116,12 @@ class TokenHttpTests {
 
     @MockitoBean
     private PlannerItemRepository plannerItems;
+
+    @MockitoBean
+    private CurationRepository curationRepository;
+
+    @MockitoBean
+    private CurationWhiskyRepository curationWhiskies;
 
     @Test
     void disabledKakaoLoginDoesNotCreateSession() throws Exception {
