@@ -88,6 +88,28 @@ public class PlannerService {
         return PlannerResponse.from(found, loadProducts(saleProductIds), loadYenPrices(saleProductIds));
     }
 
+    public void deleteItems(Long userId, String listType, Long saleProductId) {
+        boolean hasListType = listType != null && !listType.isBlank();
+        if (saleProductId != null && !hasListType) {
+            throw new PlannerException(ErrorCode.PLANNER_LIST_TYPE_REQUIRED);
+        }
+        PlannerListType parsedListType = hasListType ? requiredListType(listType) : null;
+        Optional<Planner> planner = planners.findByUserId(userId);
+        if (planner.isEmpty()) {
+            return;
+        }
+        Long plannerId = planner.get().id();
+        if (parsedListType == null) {
+            items.deleteByPlannerId(plannerId);
+            return;
+        }
+        if (saleProductId == null) {
+            items.deleteByPlannerIdAndListType(plannerId, parsedListType);
+            return;
+        }
+        items.deleteByPlannerIdAndListTypeAndSaleProductId(plannerId, parsedListType, saleProductId);
+    }
+
     private List<PreparedItem> prepare(List<Item> requested) {
         Set<Long> seen = new HashSet<>();
         List<Long> saleProductIds = new ArrayList<>();
@@ -144,6 +166,10 @@ public class PlannerService {
         if (listType == null || listType.isBlank()) {
             return PlannerListType.CANDIDATE;
         }
+        return requiredListType(listType);
+    }
+
+    private PlannerListType requiredListType(String listType) {
         try {
             return PlannerListType.valueOf(listType);
         } catch (IllegalArgumentException ex) {
