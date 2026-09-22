@@ -2,29 +2,31 @@ package com.team3.curation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import com.team3.curation.dto.CurationListResponse;
-import com.team3.curation.dto.CurationListResponse.CurationItem;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.Whisky;
 import com.team3.whisky.WhiskyLatestPrice;
 import com.team3.whisky.WhiskyRepository;
 import com.team3.whisky.dto.WhiskyListResponse.WhiskyItem;
 
-import org.springframework.data.domain.Sort;
-import org.springframework.data.domain.Sort.Order;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional(readOnly = true)
 public class CurationService {
 
-    private static final int PREVIEW_LIMIT = 4;
-    private static final Sort CURATION_SORT = Sort.by(Order.asc("id"));
+    private static final int DEFAULT_PAGE = 0;
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 50;
 
     private final CurationRepository curations;
     private final CurationWhiskyRepository members;
@@ -42,44 +44,45 @@ public class CurationService {
         this.prices = prices;
     }
 
-    public CurationListResponse getCurations() {
-        List<Curation> found = curations.findAll(CURATION_SORT);
+    public CurationListResponse getCurations(Integer page, Integer size) {
+        int pageNumber = pageNumber(page);
+        int pageSize = pageSize(size);
+        Optional<Curation> found = curations.findFirstByOrderByIdAsc();
         if (found.isEmpty()) {
-            return new CurationListResponse(List.of());
+            return CurationListResponse.empty(pageNumber, pageSize);
         }
-        List<Long> curationIds = found.stream().map(Curation::id).toList();
-        Map<Long, List<Long>> previewIdsByCuration = previewWhiskyIds(curationIds);
-        Map<Long, Whisky> whiskyById = loadWhiskies(previewIdsByCuration);
+        Curation curation = found.get();
+        Page<CurationWhisky> memberPage = members.findByCurationIdOrderByIdAsc(
+            curation.id(), PageRequest.of(pageNumber, pageSize));
+        List<Long> whiskyIds = new ArrayList<>();
+        for (CurationWhisky member : memberPage.getContent()) {
+            if (!whiskyIds.contains(member.whiskyId())) {
+                whiskyIds.add(member.whiskyId());
+            }
+        }
+        Map<Long, Whisky> whiskyById = loadWhiskies(whiskyIds);
         Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
         Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
-        collectLowestPrices(previewIdsByCuration, lowestKr, lowestJp);
-        List<CurationItem> items = new ArrayList<>();
-        for (Curation curation : found) {
-            items.add(toItem(curation, previewIdsByCuration, whiskyById, lowestKr, lowestJp));
-        }
-        return new CurationListResponse(items);
-    }
-
-    private Map<Long, List<Long>> previewWhiskyIds(List<Long> curationIds) {
-        Map<Long, List<Long>> previewIdsByCuration = new LinkedHashMap<>();
-        for (Long curationId : curationIds) {
-            previewIdsByCuration.put(curationId, new ArrayList<>());
-        }
-        for (CurationWhisky member : members.findByCurationIdInOrderByIdAsc(curationIds)) {
-            List<Long> previewIds = previewIdsByCuration.get(member.curationId());
-            if (previewIds == null || previewIds.size() >= PREVIEW_LIMIT) {
+        collectLowestPrices(whiskyIds, lowestKr, lowestJp);
+        List<WhiskyItem> content = new ArrayList<>();
+        for (Long whiskyId : whiskyIds) {
+            Whisky whisky = whiskyById.get(whiskyId);
+            if (whisky == null) {
                 continue;
             }
-            if (previewIds.contains(member.whiskyId())) {
-                continue;
-            }
-            previewIds.add(member.whiskyId());
+            content.add(WhiskyItem.from(whisky, lowestKr.get(whiskyId), lowestJp.get(whiskyId)));
         }
-        return previewIdsByCuration;
+        return new CurationListResponse(
+            curation.id(),
+            curation.title(),
+            content,
+            pageNumber,
+            pageSize,
+            memberPage.getTotalElements(),
+            memberPage.getTotalPages());
     }
 
-    private Map<Long, Whisky> loadWhiskies(Map<Long, List<Long>> previewIdsByCuration) {
-        List<Long> whiskyIds = previewIds(previewIdsByCuration);
+    private Map<Long, Whisky> loadWhiskies(List<Long> whiskyIds) {
         if (whiskyIds.isEmpty()) {
             return Map.of();
         }
@@ -91,10 +94,9 @@ public class CurationService {
     }
 
     private void collectLowestPrices(
-        Map<Long, List<Long>> previewIdsByCuration,
+        List<Long> whiskyIds,
         Map<Long, WhiskyLatestPrice> lowestKr,
         Map<Long, WhiskyLatestPrice> lowestJp) {
-        List<Long> whiskyIds = previewIds(previewIdsByCuration);
         if (whiskyIds.isEmpty()) {
             return;
         }
@@ -107,28 +109,24 @@ public class CurationService {
         }
     }
 
-    private static List<Long> previewIds(Map<Long, List<Long>> previewIdsByCuration) {
-        return previewIdsByCuration.values().stream()
-            .flatMap(List::stream)
-            .distinct()
-            .toList();
+    private static int pageNumber(Integer page) {
+        if (page == null) {
+            return DEFAULT_PAGE;
+        }
+        if (page < DEFAULT_PAGE) {
+            throw badRequest("size는 1 이상 50 이하여야 합니다.");
+        }
+        return page;
     }
 
-    private static CurationItem toItem(
-        Curation curation,
-        Map<Long, List<Long>> previewIdsByCuration,
-        Map<Long, Whisky> whiskyById,
-        Map<Long, WhiskyLatestPrice> lowestKr,
-        Map<Long, WhiskyLatestPrice> lowestJp) {
-        List<WhiskyItem> cards = new ArrayList<>();
-        for (Long whiskyId : previewIdsByCuration.getOrDefault(curation.id(), List.of())) {
-            Whisky whisky = whiskyById.get(whiskyId);
-            if (whisky == null) {
-                continue;
-            }
-            cards.add(WhiskyItem.from(whisky, lowestKr.get(whiskyId), lowestJp.get(whiskyId)));
+    private static int pageSize(Integer size) {
+        if (size == null) {
+            return DEFAULT_PAGE_SIZE;
         }
-        return new CurationItem(curation.id(), curation.title(), cards);
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw badRequest("size는 1 이상 50 이하여야 합니다.");
+        }
+        return size;
     }
 
     private static WhiskyLatestPrice lowerPrice(WhiskyLatestPrice left, WhiskyLatestPrice right) {
@@ -143,5 +141,9 @@ public class CurationService {
             return left;
         }
         return right;
+    }
+
+    private static ResponseStatusException badRequest(String detail) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, detail);
     }
 }

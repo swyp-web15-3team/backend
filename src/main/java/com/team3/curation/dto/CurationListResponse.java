@@ -4,8 +4,16 @@ import java.util.List;
 
 import com.team3.whisky.dto.WhiskyListResponse.WhiskyItem;
 
-public record CurationListResponse(List<CurationItem> curations) {
+public record CurationListResponse(
+    Long id,
+    String title,
+    List<WhiskyItem> content,
+    int page,
+    int size,
+    long totalElements,
+    int totalPages) {
 
-    public record CurationItem(Long id, String title, List<WhiskyItem> whiskies) {
+    public static CurationListResponse empty(int page, int size) {
+        return new CurationListResponse(null, null, List.of(), page, size, 0L, 0);
     }
 }
