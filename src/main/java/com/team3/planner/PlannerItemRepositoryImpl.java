@@ -5,9 +5,9 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 
 /**
- * QueryDSL {@code delete().execute()}는 엔티티를 불러오지 않고 DELETE 한 번만 보낸다.
+ * QueryDSL {@code delete}/{@code update().execute()}는 엔티티를 불러오지 않고 문 한 번만 보낸다.
  * {@code @Modifying @Query} JPQL도 동작은 같지만, 이 프로젝트는 커스텀 쿼리를 QueryDSL로 두고 JPQL은
- * QueryDSL로 못 쓸 때만 쓴다. 이 삭제는 그 예외가 아니다.
+ * QueryDSL로 못 쓸 때만 쓴다. 이 삭제·이동은 그 예외가 아니다.
  */
 public class PlannerItemRepositoryImpl implements PlannerItemRepositoryCustom {
 
@@ -45,6 +45,34 @@ public class PlannerItemRepositoryImpl implements PlannerItemRepositoryCustom {
             .where(
                 PLANNER_ITEM.plannerId.eq(plannerId),
                 PLANNER_ITEM.listType.eq(listType),
+                PLANNER_ITEM.saleProductId.eq(saleProductId))
+            .execute();
+    }
+
+    @Override
+    public long updateListTypeByPlannerIdAndListType(
+        Long plannerId, PlannerListType fromListType, PlannerListType toListType) {
+        return queryFactory
+            .update(PLANNER_ITEM)
+            .set(PLANNER_ITEM.listType, toListType)
+            .where(
+                PLANNER_ITEM.plannerId.eq(plannerId),
+                PLANNER_ITEM.listType.eq(fromListType))
+            .execute();
+    }
+
+    @Override
+    public long updateListTypeByPlannerIdAndListTypeAndSaleProductId(
+        Long plannerId,
+        PlannerListType fromListType,
+        PlannerListType toListType,
+        Long saleProductId) {
+        return queryFactory
+            .update(PLANNER_ITEM)
+            .set(PLANNER_ITEM.listType, toListType)
+            .where(
+                PLANNER_ITEM.plannerId.eq(plannerId),
+                PLANNER_ITEM.listType.eq(fromListType),
                 PLANNER_ITEM.saleProductId.eq(saleProductId))
             .execute();
     }
