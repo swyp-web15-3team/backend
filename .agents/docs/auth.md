@@ -3,11 +3,11 @@
 - Successful JSON responses use `ApiResponse<T>` (`{"data": ...}`). Login and refresh return 200; logout uses `@ResponseStatus(NO_CONTENT)` with no body. Errors retain the unwrapped ProblemDetail format.
 - Login and refresh token fields are nested under `data`; clients must read `data.accessToken`, `data.refreshToken`, and (login only) `data.isNewUser`. Clients derive access-token expiry from the JWT `exp` claim.
 - Spring Security supplies default cache-prevention headers including `no-store` and the common `Referrer-Policy: no-referrer` header.
-- `POST /auth/kakao` accepts JSON `{"code":"..."}` from the Next.js server, verifies the Kakao user, resolves an internal Long user ID, and returns `accessToken`, `refreshToken`, and `isNewUser`. `isNewUser` is true only when this request creates the user; existing users and concurrent creation conflict recovery return false. Code must be nonblank and at most 2048 characters.
+- `POST /api/v1/auth/kakao` requires query parameter `redirectUri` and accepts JSON `{"code":"..."}` from the Next.js server, verifies the Kakao user, resolves an internal Long user ID, and returns `accessToken`, `refreshToken`, and `isNewUser`. `isNewUser` is true only when this request creates the user; existing users and concurrent creation conflict recovery return false. Code must be nonblank and at most 2048 characters.
 - Next.js owns OAuth initiation, browser-bound single-use expiring `state` validation, denial handling, and token cookie setting. Exchange a code only after validating state; the backend creates no HTTP session or cookies.
 - Backend `GET /auth/kakao` and `GET /auth/kakao/callback` have been removed. Frontend integration is required before using this flow.
-- Kakao setup: set `KAKAO_LOGIN_ENABLED=true`, `KAKAO_CLIENT_ID` (REST API key), `KAKAO_REDIRECT_URI` matching the URI registered with Kakao, and server-only `KAKAO_ADMIN_KEY` with Unlink user permission. Set `KAKAO_CLIENT_SECRET` if enabled in Kakao.
-- Default frontend callback: `http://localhost:3000/auth/kakao/callback`; use HTTPS in production. The authorization request, backend `KAKAO_REDIRECT_URI`, and Kakao registration must use the same URI.
+- Kakao setup: set `KAKAO_LOGIN_ENABLED=true`, `KAKAO_CLIENT_ID` (REST API key), and server-only `KAKAO_ADMIN_KEY` with Unlink user permission. Set `KAKAO_CLIENT_SECRET` if enabled in Kakao.
+- Pass the callback URI as URL-encoded query parameter `redirectUri`; missing, blank, malformed, non-HTTP(S), hostless, or fragment-bearing values return 400. Use HTTPS in production. The authorization request, `redirectUri`, and Kakao registration must use the same URI.
 - Integration contract and manual verification: [Kakao login](../../tools/kakao-login/README.md).
 - Send access tokens as `Authorization: Bearer <accessToken>`; they expire after 15 minutes.
 - `POST /auth/refresh` accepts JSON `{"refreshToken":"..."}` and returns
