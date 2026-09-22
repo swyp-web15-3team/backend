@@ -7,6 +7,7 @@ import com.team3.collection.dto.AddWhiskyRequest;
 import com.team3.collection.dto.DeleteWhiskiesRequest;
 import com.team3.collection.dto.UpdateCollectionRequest;
 import com.team3.common.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Sort;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@SecurityRequirement(name = "bearerAuth")
 @RequestMapping("/api/v1/collections")
 public class CollectionController {
 

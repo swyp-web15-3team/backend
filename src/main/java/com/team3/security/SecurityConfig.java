@@ -27,6 +27,7 @@ public class SecurityConfig {
         throws Exception {
         AuthEntryPoint authenticationEntryPoint = new AuthEntryPoint(objectMapper);
         http.csrf(AbstractHttpConfigurer::disable)
+            .cors(Customizer.withDefaults())
             .headers(headers -> headers.referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER)))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> {
