@@ -54,3 +54,8 @@ auth:
     client-id: ${KAKAO_CLIENT_ID:}
     client-secret: ${KAKAO_CLIENT_SECRET:}
     admin-key: ${KAKAO_ADMIN_KEY:}
+
+exchange:
+  koreaexim:
+    api-key: ${KOREAEXIM_API_KEY:}
+    api-url: ${KOREAEXIM_API_URL:https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON}
