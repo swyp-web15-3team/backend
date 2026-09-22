@@ -11,12 +11,13 @@ import java.util.Set;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
+import com.team3.exchange.exception.ExchangeRateNotConfiguredException;
+import com.team3.exchange.exception.ExchangeRateNotFoundException;
+import com.team3.exchange.exception.ExchangeRateProviderException;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class KoreaEximClient {
@@ -38,23 +39,23 @@ public class KoreaEximClient {
 
     private static RestClient createClient(RestClient.Builder builder) {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build());
-        factory.setReadTimeout(Duration.ofSeconds(10));
+            .connectTimeout(Duration.ofSeconds(2)).followRedirects(HttpClient.Redirect.NEVER).build());
+        factory.setReadTimeout(Duration.ofSeconds(3));
         return builder.requestFactory(factory).build();
     }
 
     public JsonNode fetch(LocalDate date) {
         if (apiKey.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Exchange rate API is not configured.");
+            throw new ExchangeRateNotConfiguredException();
         }
         try {
             JsonNode rates = client.get().uri(apiUrl + "?authkey={key}&searchdate={date}&data=AP01",
                 apiKey, date.format(DateTimeFormatter.BASIC_ISO_DATE)).retrieve().body(JsonNode.class);
             if (rates == null || rates.isNull() || (rates.isArray() && rates.isEmpty())) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No exchange rates published for this date.");
+                throw new ExchangeRateNotFoundException();
             }
             if (!rates.isArray()) {
-                throw invalidResponse();
+                throw new ExchangeRateProviderException();
             }
             Set<String> currencies = new HashSet<>();
             for (JsonNode rate : rates) {
@@ -65,18 +66,13 @@ public class KoreaEximClient {
                     || rate.path("cur_nm").asText().isBlank()
                     || !baseRate.matches("(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\\.[0-9]+)?")
                     || new BigDecimal(baseRate.replace(",", "")).signum() <= 0) {
-                    throw invalidResponse();
+                    throw new ExchangeRateProviderException();
                 }
             }
             return rates;
         } catch (RestClientException ex) {
             // Provider exceptions may contain the API key in the request URL.
-            throw invalidResponse();
+            throw new ExchangeRateProviderException();
         }
-    }
-
-    private ResponseStatusException invalidResponse() {
-        return new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-            "Exchange rate provider unavailable or invalid response.");
     }
 }

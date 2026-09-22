@@ -5,13 +5,14 @@ import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 
 import com.team3.common.ApiResponse;
-import org.springframework.http.HttpStatus;
+import com.team3.exchange.exception.InvalidExchangeRateDateException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
+@RequestMapping("/api/v1/exchange-rates")
 public class ExchangeRateController {
     private final ExchangeRateService service;
 
@@ -19,18 +20,13 @@ public class ExchangeRateController {
         this.service = service;
     }
 
-    @GetMapping("/api/v1/exchange-rates")
+    @GetMapping
     public ApiResponse<ExchangeRateResponse> getRates(@RequestParam(required = false) String date) {
-        LocalDate requested = LocalDate.now(ZoneId.of("Asia/Seoul"));
-        if (date != null) {
-            try {
-                if (!date.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) {
-                    throw new DateTimeParseException("Invalid date format", date, 0);
-                }
-                requested = LocalDate.parse(date);
-            } catch (DateTimeParseException ex) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Date must be a valid YYYY-MM-DD date.");
-            }
+        LocalDate requested;
+        try {
+            requested = date == null ? LocalDate.now(ZoneId.of("Asia/Seoul")) : LocalDate.parse(date);
+        } catch (DateTimeParseException ex) {
+            throw new InvalidExchangeRateDateException();
         }
         return ApiResponse.of(ExchangeRateResponse.from(service.getRates(requested)));
     }

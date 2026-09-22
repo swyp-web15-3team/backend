@@ -4,11 +4,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Optional;
 
-import org.springframework.http.HttpStatus;
+import com.team3.exchange.exception.InvalidExchangeRateDateException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ExchangeRateService {
@@ -22,15 +21,14 @@ public class ExchangeRateService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ExchangeRateSnapshot getRates(LocalDate date) {
-        if (date.getYear() < 1 || date.getYear() > 9999 || date.isAfter(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Date must not be in the future.");
+        if (date.isAfter(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
+            throw new InvalidExchangeRateDateException();
         }
         Optional<ExchangeRateSnapshot> existing = repository.findById(date);
         if (existing.isPresent()) {
             return existing.get();
         }
-        // Transaction-scoped, per-date lock also covers requests from other application
-        // instances.
+
         repository.lockDate(Math.toIntExact(date.toEpochDay()));
         return repository.findById(date)
             .orElseGet(() -> repository.save(new ExchangeRateSnapshot(date, client.fetch(date))));
