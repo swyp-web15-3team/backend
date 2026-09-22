@@ -88,6 +88,17 @@ public class PlannerService {
         return PlannerResponse.from(found, loadProducts(saleProductIds), loadYenPrices(saleProductIds));
     }
 
+    public void deleteItem(Long userId, Long plannerItemId) {
+        PlannerItem item = items.findById(plannerItemId)
+            .orElseThrow(() -> new PlannerException(ErrorCode.PLANNER_ITEM_NOT_FOUND));
+        Planner planner = planners.findById(item.plannerId())
+            .orElseThrow(() -> new PlannerException(ErrorCode.PLANNER_ITEM_NOT_FOUND));
+        if (!userId.equals(planner.userId())) {
+            throw new PlannerException(ErrorCode.PLANNER_ITEM_FORBIDDEN);
+        }
+        items.delete(item);
+    }
+
     public void deleteItems(Long userId, String listType, Long saleProductId) {
         boolean hasListType = listType != null && !listType.isBlank();
         if (saleProductId != null && !hasListType) {

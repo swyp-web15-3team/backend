@@ -52,6 +52,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "위스키 ID가 올바르지 않습니다.");
             return handleExceptionInternal(ex, problem, headers, status, request);
         }
+        if ("plannerItemId".equals(ex.getPropertyName())) {
+            ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "플래너 항목 ID가 올바르지 않습니다.");
+            return handleExceptionInternal(ex, problem, headers, status, request);
+        }
         if ("saleProductId".equals(ex.getPropertyName())) {
             ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "판매 상품 ID가 올바르지 않습니다.");
             return handleExceptionInternal(ex, problem, headers, status, request);
