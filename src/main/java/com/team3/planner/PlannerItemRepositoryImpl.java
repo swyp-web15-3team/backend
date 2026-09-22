@@ -4,6 +4,11 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import jakarta.persistence.EntityManager;
 
+/**
+ * QueryDSL {@code delete().execute()}는 엔티티를 불러오지 않고 DELETE 한 번만 보낸다.
+ * {@code @Modifying @Query} JPQL도 동작은 같지만, 이 프로젝트는 커스텀 쿼리를 QueryDSL로
+ * 두고 JPQL은 QueryDSL로 못 쓸 때만 쓴다. 이 삭제는 그 예외가 아니다.
+ */
 public class PlannerItemRepositoryImpl implements PlannerItemRepositoryCustom {
 
     private static final QPlannerItem PLANNER_ITEM = QPlannerItem.plannerItem;
