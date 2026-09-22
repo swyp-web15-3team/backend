@@ -47,6 +47,10 @@ public enum ErrorCode {
 
     PLANNER_LIST_TYPE_REQUIRED(HttpStatus.BAD_REQUEST, "PLANNER_011", "listType이 필요합니다."),
 
+    PLANNER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "PLANNER_012", "플래너 항목을 찾을 수 없습니다."),
+
+    PLANNER_ITEM_FORBIDDEN(HttpStatus.FORBIDDEN, "PLANNER_013", "접근할 수 없는 플래너 항목입니다."),
+
     SALE_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "SALE_PRODUCT_001", "판매 상품을 찾을 수 없습니다.");
 
     private final HttpStatus status;
