@@ -23,7 +23,7 @@ class KakaoClientTests {
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final KakaoClient client = new KakaoClient(builder.build(), new KakaoProperties(true, "app", "secret",
-        "https://frontend.test/auth/kakao/callback", "admin-key"));
+        "admin-key"));
 
     @Test
     void exchangesEncodedCodeAndUsesBearerTokenToGetIdentity() {
@@ -39,7 +39,7 @@ class KakaoClientTests {
         server.expect(requestTo("https://kapi.kakao.com/v2/user/me")).andExpect(method(HttpMethod.GET))
             .andExpect(header("Authorization", "Bearer provider-token"))
             .andRespond(withSuccess("{\"id\":123,\"kakao_account\":{}}", MediaType.APPLICATION_JSON));
-        assertThat(client.userId("code+&=")).isEqualTo(123L);
+        assertThat(client.userId("code+&=", "https://frontend.test/auth/kakao/callback")).isEqualTo(123L);
         server.verify();
     }
 
@@ -112,11 +112,12 @@ class KakaoClientTests {
     }
 
     private void assertFailure(HttpStatus status) {
-        assertThatThrownBy(() -> client.userId("code")).isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
-            assertThat(ex.getStatusCode()).isEqualTo(status);
-            assertThat(ex.getMessage()).doesNotContain("provider-secret");
-            assertThat(ex.getCause()).isNull();
-        });
+        assertThatThrownBy(() -> client.userId("code", "https://frontend.test/auth/kakao/callback"))
+            .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                assertThat(ex.getStatusCode()).isEqualTo(status);
+                assertThat(ex.getMessage()).doesNotContain("provider-secret");
+                assertThat(ex.getCause()).isNull();
+            });
         server.verify();
     }
 }

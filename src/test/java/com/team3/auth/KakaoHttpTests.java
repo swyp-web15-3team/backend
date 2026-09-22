@@ -115,13 +115,15 @@ class KakaoHttpTests {
     @Test
     void exchangesCodeWithoutSessionOrCookies() throws Exception {
         Long id = 42L;
-        when(kakao.userId("code")).thenReturn(123L);
+        when(kakao.userId("code", "https://frontend.test/callback")).thenReturn(123L);
         User user = mock(User.class);
         when(user.id()).thenReturn(id);
         when(users.findByProviderAndProviderId(Provider.KAKAO, "123")).thenReturn(Optional.of(user));
         when(users.findLockedById(id)).thenReturn(Optional.of(user));
-        MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"code\":\"code\"}"))
+        MvcResult result = mvc
+            .perform(post("/api/v1/auth/kakao").queryParam("redirectUri", "https://frontend.test/callback")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"code\"}"))
             .andExpect(status().isOk())
             .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
             .andExpect(header().string("Referrer-Policy", "no-referrer"))
@@ -139,14 +141,16 @@ class KakaoHttpTests {
 
     @Test
     void returnsNewUserWhenRegistrationSucceeds() throws Exception {
-        when(kakao.userId("code")).thenReturn(123L);
+        when(kakao.userId("code", "https://frontend.test/callback")).thenReturn(123L);
         User user = mock(User.class);
         when(user.id()).thenReturn(42L);
         when(user.isPending()).thenReturn(true);
         when(users.saveAndFlush(any(User.class))).thenReturn(user);
         when(users.findLockedById(42L)).thenReturn(Optional.of(user));
-        MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"code\":\"code\"}"))
+        MvcResult result = mvc
+            .perform(post("/api/v1/auth/kakao").queryParam("redirectUri", "https://frontend.test/callback")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"code\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.isNewUser").value(true))
             .andExpect(jsonPath("$.data.refreshToken").isString())
@@ -161,12 +165,14 @@ class KakaoHttpTests {
     void rejectsMissingBlankOversizedAndMalformedCode() throws Exception {
         for (String body : new String[]{"{}", "{\"code\":null}", "{\"code\":\" \"}",
                 "{\"code\":\"" + "a".repeat(2049) + "\"}"}) {
-            mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON).content(body))
+            mvc.perform(post("/api/v1/auth/kakao").queryParam("redirectUri", "https://frontend.test/callback")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("code"))
                 .andExpect(jsonPath("$.errors[0].message").isString())
                 .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist());
         }
-        mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON).content("{"))
+        mvc.perform(post("/api/v1/auth/kakao").queryParam("redirectUri", "https://frontend.test/callback")
+            .contentType(MediaType.APPLICATION_JSON).content("{"))
             .andExpect(status().isBadRequest());
         verifyNoInteractions(kakao, users, refreshTokens);
     }
@@ -174,8 +180,10 @@ class KakaoHttpTests {
     @Test
     void preservesProviderFailureStatusWithoutIssuingTokens() throws Exception {
         for (HttpStatus status : new HttpStatus[]{HttpStatus.UNAUTHORIZED, HttpStatus.BAD_GATEWAY}) {
-            doThrow(new ResponseStatusException(status, "Kakao login failed.")).when(kakao).userId("code");
-            mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
+            doThrow(new ResponseStatusException(status, "Kakao login failed.")).when(kakao).userId("code",
+                "https://frontend.test/callback");
+            mvc.perform(post("/api/v1/auth/kakao").queryParam("redirectUri", "https://frontend.test/callback")
+                .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"code\":\"code\"}"))
                 .andExpect(status().is(status.value()))
                 .andExpect(header().doesNotExist("Set-Cookie"));
