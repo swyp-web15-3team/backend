@@ -121,6 +121,24 @@ public class PlannerService {
         items.deleteByPlannerIdAndListTypeAndSaleProductId(plannerId, parsedListType, saleProductId);
     }
 
+    public void moveItems(Long userId, String fromListType, String toListType, Long saleProductId) {
+        PlannerListType from = requiredListType(fromListType);
+        PlannerListType to = requiredListType(toListType);
+        if (from == to) {
+            throw new PlannerException(ErrorCode.PLANNER_SAME_LIST_TYPE);
+        }
+        Optional<Planner> planner = planners.findByUserId(userId);
+        if (planner.isEmpty()) {
+            return;
+        }
+        Long plannerId = planner.get().id();
+        if (saleProductId == null) {
+            items.updateListTypeByPlannerIdAndListType(plannerId, from, to);
+            return;
+        }
+        items.updateListTypeByPlannerIdAndListTypeAndSaleProductId(plannerId, from, to, saleProductId);
+    }
+
     private List<PreparedItem> prepare(List<Item> requested) {
         Set<Long> seen = new HashSet<>();
         List<Long> saleProductIds = new ArrayList<>();
@@ -181,6 +199,9 @@ public class PlannerService {
     }
 
     private PlannerListType requiredListType(String listType) {
+        if (listType == null || listType.isBlank()) {
+            throw new PlannerException(ErrorCode.PLANNER_INVALID_LIST_TYPE);
+        }
         try {
             return PlannerListType.valueOf(listType);
         } catch (IllegalArgumentException ex) {

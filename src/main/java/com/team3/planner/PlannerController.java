@@ -3,6 +3,7 @@ package com.team3.planner;
 import com.team3.common.ApiResponse;
 import com.team3.planner.dto.AddPlannerItemsRequest;
 import com.team3.planner.dto.AddPlannerItemsResponse;
+import com.team3.planner.dto.MovePlannerItemsRequest;
 import com.team3.planner.dto.PlannerResponse;
 
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,6 +41,18 @@ public class PlannerController {
         @AuthenticationPrincipal Jwt jwt,
         @RequestBody AddPlannerItemsRequest request) {
         return ApiResponse.of(planners.addItems(Long.valueOf(jwt.getSubject()), request));
+    }
+
+    @PatchMapping("/move")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void moveItems(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestBody MovePlannerItemsRequest request) {
+        planners.moveItems(
+            Long.valueOf(jwt.getSubject()),
+            request == null ? null : request.fromListType(),
+            request == null ? null : request.toListType(),
+            request == null ? null : request.saleProductId());
     }
 
     @DeleteMapping("/items/{plannerItemId}")
