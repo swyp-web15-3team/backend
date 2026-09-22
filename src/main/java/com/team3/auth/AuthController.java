@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
@@ -48,8 +49,9 @@ public class AuthController {
     }
 
     @PostMapping("/kakao")
-    public ApiResponse<KakaoLoginResponse> login(@Valid @RequestBody KakaoLoginRequest request) {
-        long kakaoId = kakaoClient().userId(request.code());
+    public ApiResponse<KakaoLoginResponse> login(@Valid @RequestBody KakaoLoginRequest request,
+        @RequestParam("redirectUri") String redirectUri) {
+        long kakaoId = kakaoClient().userId(request.code(), redirectUri);
         AuthService.UserResult user = tokens.findOrCreateUser(Provider.KAKAO, Long.toString(kakaoId));
         AuthService.TokenPair pair = tokens.issue(user.userId());
         return ApiResponse.of(

@@ -1,6 +1,10 @@
 package com.team3.planner;
 
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface PlannerItemRepository extends JpaRepository<PlannerItem, Long> {
+public interface PlannerItemRepository extends JpaRepository<PlannerItem, Long>, PlannerItemRepositoryCustom {
+
+    List<PlannerItem> findByPlannerIdOrderByIdAsc(Long plannerId);
 }

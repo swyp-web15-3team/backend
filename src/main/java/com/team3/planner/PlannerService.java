@@ -13,6 +13,7 @@ import com.team3.planner.dto.AddPlannerItemsRequest;
 import com.team3.planner.dto.AddPlannerItemsRequest.Item;
 import com.team3.planner.dto.AddPlannerItemsResponse;
 import com.team3.planner.dto.AddPlannerItemsResponse.PlannerItemResponse;
+import com.team3.planner.dto.PlannerResponse;
 import com.team3.planner.exception.PlannerException;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.SaleProduct;
@@ -70,6 +71,74 @@ public class PlannerService {
         return new AddPlannerItemsResponse(PlannerItemResponse.from(created, products, latestPrices));
     }
 
+    @Transactional(readOnly = true)
+    public PlannerResponse getPlanner(Long userId) {
+        Optional<Planner> planner = planners.findByUserId(userId);
+        if (planner.isEmpty()) {
+            return PlannerResponse.empty();
+        }
+        List<PlannerItem> found = items.findByPlannerIdOrderByIdAsc(planner.get().id());
+        if (found.isEmpty()) {
+            return PlannerResponse.empty();
+        }
+        List<Long> saleProductIds = new ArrayList<>();
+        for (PlannerItem item : found) {
+            saleProductIds.add(item.saleProductId());
+        }
+        return PlannerResponse.from(found, loadProducts(saleProductIds), loadYenPrices(saleProductIds));
+    }
+
+    public void deleteItem(Long userId, Long plannerItemId) {
+        PlannerItem item = items.findById(plannerItemId)
+            .orElseThrow(() -> new PlannerException(ErrorCode.PLANNER_ITEM_NOT_FOUND));
+        Planner planner = planners.findById(item.plannerId())
+            .orElseThrow(() -> new PlannerException(ErrorCode.PLANNER_ITEM_NOT_FOUND));
+        if (!userId.equals(planner.userId())) {
+            throw new PlannerException(ErrorCode.PLANNER_ITEM_FORBIDDEN);
+        }
+        items.delete(item);
+    }
+
+    public void deleteItems(Long userId, String listType, Long saleProductId) {
+        boolean hasListType = listType != null && !listType.isBlank();
+        if (saleProductId != null && !hasListType) {
+            throw new PlannerException(ErrorCode.PLANNER_LIST_TYPE_REQUIRED);
+        }
+        PlannerListType parsedListType = hasListType ? requiredListType(listType) : null;
+        Optional<Planner> planner = planners.findByUserId(userId);
+        if (planner.isEmpty()) {
+            return;
+        }
+        Long plannerId = planner.get().id();
+        if (parsedListType == null) {
+            items.deleteByPlannerId(plannerId);
+            return;
+        }
+        if (saleProductId == null) {
+            items.deleteByPlannerIdAndListType(plannerId, parsedListType);
+            return;
+        }
+        items.deleteByPlannerIdAndListTypeAndSaleProductId(plannerId, parsedListType, saleProductId);
+    }
+
+    public void moveItems(Long userId, String fromListType, String toListType, Long saleProductId) {
+        PlannerListType from = requiredListType(fromListType);
+        PlannerListType to = requiredListType(toListType);
+        if (from == to) {
+            throw new PlannerException(ErrorCode.PLANNER_SAME_LIST_TYPE);
+        }
+        Optional<Planner> planner = planners.findByUserId(userId);
+        if (planner.isEmpty()) {
+            return;
+        }
+        Long plannerId = planner.get().id();
+        if (saleProductId == null) {
+            items.updateListTypeByPlannerIdAndListType(plannerId, from, to);
+            return;
+        }
+        items.updateListTypeByPlannerIdAndListTypeAndSaleProductId(plannerId, from, to, saleProductId);
+    }
+
     private List<PreparedItem> prepare(List<Item> requested) {
         Set<Long> seen = new HashSet<>();
         List<Long> saleProductIds = new ArrayList<>();
@@ -125,6 +194,13 @@ public class PlannerService {
     private PlannerListType listType(String listType) {
         if (listType == null || listType.isBlank()) {
             return PlannerListType.CANDIDATE;
+        }
+        return requiredListType(listType);
+    }
+
+    private PlannerListType requiredListType(String listType) {
+        if (listType == null || listType.isBlank()) {
+            throw new PlannerException(ErrorCode.PLANNER_INVALID_LIST_TYPE);
         }
         try {
             return PlannerListType.valueOf(listType);
