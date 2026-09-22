@@ -44,6 +44,9 @@ public class SaleProduct {
     @Column(name = "is_sold_out")
     private Boolean soldOut;
 
+    @Column(name = "image_url", columnDefinition = "text")
+    private String imageUrl;
+
     protected SaleProduct() {
     }
 
@@ -82,6 +85,10 @@ public class SaleProduct {
         this.retailer = retailer;
         this.productUrl = productUrl;
         this.soldOut = soldOut;
+    }
+
+    public String imageUrl() {
+        return imageUrl;
     }
 
     public Long id() {

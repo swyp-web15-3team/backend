@@ -16,6 +16,7 @@ import com.team3.whisky.dto.WhiskyListResponse.WhiskyItem;
 public record WhiskyDetailResponse(
     Long id,
     String name,
+    String imageUrl,
     Integer volumeMl,
     BigDecimal abv,
     NamedRef category,
@@ -35,6 +36,7 @@ public record WhiskyDetailResponse(
         return new WhiskyDetailResponse(
             item.id(),
             item.name(),
+            item.imageUrl(),
             item.volumeMl(),
             item.abv(),
             item.category(),
@@ -53,6 +55,7 @@ public record WhiskyDetailResponse(
         String countryCode,
         boolean isDutyFree,
         String productUrl,
+        String imageUrl,
         Boolean isSoldOut,
         SalePrice price) {
 
@@ -64,6 +67,7 @@ public record WhiskyDetailResponse(
                 saleProduct.retailer().countryCode(),
                 saleProduct.retailer().isDutyFree(),
                 saleProduct.productUrl(),
+                saleProduct.imageUrl(),
                 saleProduct.isSoldOut(),
                 SalePrice.from(latestPrice));
         }
