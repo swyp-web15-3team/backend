@@ -25,7 +25,6 @@ public class KakaoClient {
     private final RestClient client;
     private final String clientId;
     private final String clientSecret;
-    private final String redirectUri;
     private final String adminKey;
 
     @Autowired
@@ -35,17 +34,12 @@ public class KakaoClient {
 
     KakaoClient(RestClient client, KakaoProperties properties) {
         String clientId = properties.clientId();
-        String redirectUri = properties.redirectUri();
-        URI redirect = URI.create(redirectUri);
-        if (clientId.isBlank() || properties.adminKey().isBlank() || redirect.getHost() == null
-            || redirect.getFragment() != null
-            || !("https".equals(redirect.getScheme()) || "http".equals(redirect.getScheme()))) {
+        if (clientId.isBlank() || properties.adminKey().isBlank()) {
             throw new IllegalArgumentException("Valid Kakao settings are required.");
         }
         this.client = client;
         this.clientId = clientId;
         this.clientSecret = properties.clientSecret();
-        this.redirectUri = redirectUri;
         this.adminKey = properties.adminKey();
     }
 
@@ -56,7 +50,16 @@ public class KakaoClient {
         return builder.requestFactory(factory).build();
     }
 
-    public long userId(String code) {
+    public long userId(String code, String redirectUri) {
+        try {
+            URI redirect = URI.create(redirectUri);
+            if (redirect.getHost() == null || redirect.getFragment() != null
+                || !("https".equals(redirect.getScheme()) || "http".equals(redirect.getScheme()))) {
+                throw new IllegalArgumentException();
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid redirectUri.");
+        }
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("client_id", clientId);

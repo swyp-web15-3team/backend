@@ -125,8 +125,10 @@ class TokenHttpTests {
 
     @Test
     void disabledKakaoLoginDoesNotCreateSession() throws Exception {
-        MvcResult result = mvc.perform(post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"code\":\"code\"}"))
+        MvcResult result = mvc
+            .perform(post("/api/v1/auth/kakao").queryParam("redirectUri", "https://frontend.test/callback")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"code\"}"))
             .andExpect(status().isNotFound()).andReturn();
         assertThat(result.getRequest().getSession(false)).isNull();
         assertThat(result.getResponse().getHeader("Set-Cookie")).isNull();

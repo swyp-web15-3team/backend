@@ -51,5 +51,4 @@ auth:
     enabled: ${KAKAO_LOGIN_ENABLED:false}
     client-id: ${KAKAO_CLIENT_ID:}
     client-secret: ${KAKAO_CLIENT_SECRET:}
-    redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:3000/auth/kakao/callback}
     admin-key: ${KAKAO_ADMIN_KEY:}
