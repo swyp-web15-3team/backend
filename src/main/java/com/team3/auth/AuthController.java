@@ -8,6 +8,7 @@ import com.team3.auth.dto.RefreshResponse;
 import com.team3.auth.dto.SignUpRequest;
 import com.team3.user.Provider;
 import com.team3.common.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
@@ -56,12 +57,14 @@ public class AuthController {
     }
 
     @PostMapping("/sign-up")
+    @SecurityRequirement(name = "bearerAuth")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void signUp(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody SignUpRequest request) {
         tokens.signUp(userId(jwt), request.marketingAgreed());
     }
 
     @DeleteMapping("/withdrawal")
+    @SecurityRequirement(name = "bearerAuth")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void withdraw(@AuthenticationPrincipal Jwt jwt) {
         tokens.withdraw(userId(jwt), kakaoClient());
