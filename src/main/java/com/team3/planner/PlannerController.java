@@ -48,14 +48,11 @@ public class PlannerController {
     public void moveItems(
         @AuthenticationPrincipal Jwt jwt,
         @RequestBody MovePlannerItemsRequest request) {
-        MovePlannerItemsRequest body = request == null
-            ? new MovePlannerItemsRequest(null, null, null)
-            : request;
         planners.moveItems(
             Long.valueOf(jwt.getSubject()),
-            body.fromListType(),
-            body.toListType(),
-            body.saleProductId());
+            request == null ? null : request.fromListType(),
+            request == null ? null : request.toListType(),
+            request == null ? null : request.saleProductId());
     }
 
     @DeleteMapping("/items/{plannerItemId}")
