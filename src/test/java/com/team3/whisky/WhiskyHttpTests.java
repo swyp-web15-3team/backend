@@ -120,6 +120,7 @@ class WhiskyHttpTests {
     @Test
     void returnsWhiskiesWithoutAuthentication() throws Exception {
         Whisky lagavulin16 = listedWhisky();
+        when(lagavulin16.imageUrl()).thenReturn("https://example.com/whisky.jpg");
         when(whiskies.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
             .thenReturn(new PageImpl<>(List.of(lagavulin16), PageRequest.of(0, 20), 1));
         when(prices.findLatestAvailablePrices(List.of(101L))).thenReturn(List.of(
@@ -134,6 +135,7 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.content.length()").value(1))
             .andExpect(jsonPath("$.data.content[0].id").value(101))
             .andExpect(jsonPath("$.data.content[0].name").value("Lagavulin 16"))
+            .andExpect(jsonPath("$.data.content[0].imageUrl").value("https://example.com/whisky.jpg"))
             .andExpect(jsonPath("$.data.content[0].volumeMl").value(700))
             .andExpect(jsonPath("$.data.content[0].abv").value(43.0))
             .andExpect(jsonPath("$.data.content[0].category.id").value(1))
@@ -239,9 +241,11 @@ class WhiskyHttpTests {
     @Test
     void returnsWhiskyDetailWithoutAuthentication() throws Exception {
         Whisky whisky = listedWhisky();
+        when(whisky.imageUrl()).thenReturn("https://example.com/whisky.jpg");
         when(whiskies.findById(101L)).thenReturn(Optional.of(whisky));
         SaleProduct krProduct = saleProduct(
             501L, "롯데면세점", "서울특별시 중구 을지로 30", "KR", true, "https://example.com/product/501", false);
+        when(krProduct.imageUrl()).thenReturn("https://example.com/retailer.jpg");
         SaleProduct soldOutProduct = saleProduct(
             503L, "품절점", null, "KR", false, "https://example.com/product/503", true);
         when(saleProducts.findByWhiskyIdOrderByIdAsc(101L)).thenReturn(List.of(krProduct, soldOutProduct));
@@ -261,6 +265,7 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.success").doesNotExist())
             .andExpect(jsonPath("$.data.id").value(101))
             .andExpect(jsonPath("$.data.name").value("Lagavulin 16"))
+            .andExpect(jsonPath("$.data.imageUrl").value("https://example.com/whisky.jpg"))
             .andExpect(jsonPath("$.data.volumeMl").value(700))
             .andExpect(jsonPath("$.data.abv").value(43.0))
             .andExpect(jsonPath("$.data.category.id").value(1))
@@ -282,6 +287,7 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.comparison").isEmpty())
             .andExpect(jsonPath("$.data.saleProducts.length()").value(2))
             .andExpect(jsonPath("$.data.saleProducts[0].id").value(501))
+            .andExpect(jsonPath("$.data.saleProducts[0].imageUrl").value("https://example.com/retailer.jpg"))
             .andExpect(jsonPath("$.data.saleProducts[0].retailerName").value("롯데면세점"))
             .andExpect(jsonPath("$.data.saleProducts[0].retailerAddress").value("서울특별시 중구 을지로 30"))
             .andExpect(jsonPath("$.data.saleProducts[0].countryCode").value("KR"))
@@ -294,6 +300,7 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.saleProducts[0].price.collectedAt").value("2026-09-07T18:00:00Z"))
             .andExpect(jsonPath("$.data.saleProducts[0].price.stale").value(false))
             .andExpect(jsonPath("$.data.saleProducts[1].id").value(503))
+            .andExpect(jsonPath("$.data.saleProducts[1].imageUrl").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(jsonPath("$.data.saleProducts[1].isSoldOut").value(true))
             .andExpect(jsonPath("$.data.saleProducts[1].retailerAddress").isEmpty())
             .andExpect(jsonPath("$.data.saleProducts[1].price.amount").value(200000));
@@ -309,6 +316,7 @@ class WhiskyHttpTests {
         mvc.perform(get("/api/v1/whiskies/101"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.saleProducts").isEmpty())
+            .andExpect(jsonPath("$.data.imageUrl").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(jsonPath("$.data.kr").isEmpty())
             .andExpect(jsonPath("$.data.jp").isEmpty())
             .andExpect(jsonPath("$.data.comparison").isEmpty());
@@ -355,6 +363,7 @@ class WhiskyHttpTests {
         Whisky source = listedWhisky();
         Whisky related = whiskyCard(102L, "Lagavulin 8", new BigDecimal("48.0"));
         when(whiskies.findById(101L)).thenReturn(Optional.of(source));
+        when(related.imageUrl()).thenReturn("https://example.com/related.jpg");
         when(whiskies.findRelated(101L, 1L, null, 10)).thenReturn(List.of(related));
         when(prices.findLatestAvailablePrices(List.of(102L))).thenReturn(List.of(
             new WhiskyLatestPrice(
@@ -368,6 +377,7 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.whiskies.length()").value(1))
             .andExpect(jsonPath("$.data.whiskies[0].id").value(102))
             .andExpect(jsonPath("$.data.whiskies[0].name").value("Lagavulin 8"))
+            .andExpect(jsonPath("$.data.whiskies[0].imageUrl").value("https://example.com/related.jpg"))
             .andExpect(jsonPath("$.data.whiskies[0].volumeMl").value(700))
             .andExpect(jsonPath("$.data.whiskies[0].abv").value(48.0))
             .andExpect(jsonPath("$.data.whiskies[0].category.id").value(1))

@@ -41,6 +41,9 @@ public class Whisky {
     @JoinColumn(name = "region_id")
     private WhiskyRegion region;
 
+    @Column(name = "image_url", columnDefinition = "text")
+    private String imageUrl;
+
     protected Whisky() {
     }
 
@@ -72,6 +75,10 @@ public class Whisky {
         this.abv = abv;
         this.origin = origin;
         this.region = region;
+    }
+
+    public String imageUrl() {
+        return imageUrl;
     }
 
     public Long id() {

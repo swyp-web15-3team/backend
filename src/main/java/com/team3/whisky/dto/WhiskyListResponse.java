@@ -20,6 +20,7 @@ public record WhiskyListResponse(
     public record WhiskyItem(
         Long id,
         String name,
+        String imageUrl,
         Integer volumeMl,
         BigDecimal abv,
         NamedRef category,
@@ -33,6 +34,7 @@ public record WhiskyListResponse(
             return new WhiskyItem(
                 whisky.id(),
                 whisky.name(),
+                whisky.imageUrl(),
                 whisky.volumeMl(),
                 whisky.abv(),
                 named(whisky.category()),
