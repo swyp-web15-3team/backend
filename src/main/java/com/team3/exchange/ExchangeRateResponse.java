@@ -21,7 +21,9 @@ public record ExchangeRateResponse(
                 currency = currency.substring(0, 3);
                 rate = rate.movePointLeft(2);
             }
-            rates.add(new Rate(currency, rate));
+            if (currency.equals("JPY") || currency.equals("USD")) {
+                rates.add(new Rate(currency, rate));
+            }
         }
         return new ExchangeRateResponse(snapshot.getDate(), rates);
     }
