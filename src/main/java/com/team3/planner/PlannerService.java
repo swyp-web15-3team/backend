@@ -99,6 +99,46 @@ public class PlannerService {
         items.delete(item);
     }
 
+    public PlannerResponse.PlannerItemResponse changeSaleProduct(
+        Long userId, Long plannerItemId, Long saleProductId) {
+        if (saleProductId == null) {
+            throw new PlannerException(ErrorCode.PLANNER_SALE_PRODUCT_ID_REQUIRED);
+        }
+        PlannerItem item = items.findById(plannerItemId)
+            .orElseThrow(() -> new PlannerException(ErrorCode.PLANNER_ITEM_NOT_FOUND));
+        Planner planner = planners.findById(item.plannerId())
+            .orElseThrow(() -> new PlannerException(ErrorCode.PLANNER_ITEM_NOT_FOUND));
+        if (!userId.equals(planner.userId())) {
+            throw new PlannerException(ErrorCode.PLANNER_ITEM_FORBIDDEN);
+        }
+        Map<Long, SaleProduct> products = loadProducts(List.of(item.saleProductId(), saleProductId));
+        SaleProduct current = products.get(item.saleProductId());
+        SaleProduct next = products.get(saleProductId);
+        if (next == null || next.whisky() == null) {
+            throw new PlannerException(ErrorCode.SALE_PRODUCT_NOT_FOUND, saleProductId);
+        }
+        if (current == null || current.whisky() == null
+            || !current.whisky().id().equals(next.whisky().id())) {
+            throw new PlannerException(ErrorCode.PLANNER_WHISKY_MISMATCH);
+        }
+        if (!JAPAN.equals(next.retailer().countryCode())) {
+            throw new PlannerException(ErrorCode.PLANNER_CHANGE_NOT_JAPANESE, saleProductId);
+        }
+        if (Boolean.TRUE.equals(next.isSoldOut())) {
+            throw new PlannerException(ErrorCode.PLANNER_CHANGE_SOLD_OUT, saleProductId);
+        }
+        if (next.isSoldOut() == null) {
+            throw new PlannerException(ErrorCode.PLANNER_STOCK_UNKNOWN, saleProductId);
+        }
+        Map<Long, WhiskyLatestPrice> latestPrices = loadYenPrices(List.of(saleProductId));
+        WhiskyLatestPrice price = latestPrices.get(saleProductId);
+        if (price == null) {
+            throw new PlannerException(ErrorCode.PLANNER_PRICE_MISSING, saleProductId);
+        }
+        item.changeSaleProduct(saleProductId);
+        return PlannerResponse.PlannerItemResponse.from(item, next, price);
+    }
+
     public void deleteItems(Long userId, String listType, Long saleProductId) {
         boolean hasListType = listType != null && !listType.isBlank();
         if (saleProductId != null && !hasListType) {
