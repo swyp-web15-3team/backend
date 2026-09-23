@@ -52,6 +52,13 @@ public class PlannerItem {
         this.listType = listType;
     }
 
+    public void changeSaleProduct(Long saleProductId) {
+        if (saleProductId == null) {
+            throw new IllegalArgumentException("판매 상품 ID는 필수입니다.");
+        }
+        this.saleProductId = saleProductId;
+    }
+
     public Long id() {
         return id;
     }
