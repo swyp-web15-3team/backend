@@ -53,6 +53,12 @@ public enum ErrorCode {
 
     PLANNER_SAME_LIST_TYPE(HttpStatus.BAD_REQUEST, "PLANNER_014", "같은 리스트로는 이동할 수 없습니다."),
 
+    PLANNER_WHISKY_MISMATCH(HttpStatus.BAD_REQUEST, "PLANNER_015", "같은 위스키의 판매 상품으로만 변경할 수 있습니다."),
+
+    PLANNER_CHANGE_NOT_JAPANESE(HttpStatus.BAD_REQUEST, "PLANNER_016", "일본 판매 상품으로만 변경할 수 있습니다."),
+
+    PLANNER_CHANGE_SOLD_OUT(HttpStatus.BAD_REQUEST, "PLANNER_017", "품절 상품으로 변경할 수 없습니다."),
+
     SALE_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "SALE_PRODUCT_001", "판매 상품을 찾을 수 없습니다.");
 
     private final HttpStatus status;
