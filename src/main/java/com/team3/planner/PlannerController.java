@@ -5,6 +5,7 @@ import com.team3.planner.dto.AddPlannerItemsRequest;
 import com.team3.planner.dto.AddPlannerItemsResponse;
 import com.team3.planner.dto.MovePlannerItemsRequest;
 import com.team3.planner.dto.PlannerResponse;
+import com.team3.planner.dto.UpdatePlannerItemSaleProductRequest;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -53,6 +54,17 @@ public class PlannerController {
             request == null ? null : request.fromListType(),
             request == null ? null : request.toListType(),
             request == null ? null : request.saleProductId());
+    }
+
+    @PatchMapping("/items/{plannerItemId}")
+    public ApiResponse<PlannerResponse.PlannerItemResponse> changeSaleProduct(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable Long plannerItemId,
+        @RequestBody UpdatePlannerItemSaleProductRequest request) {
+        return ApiResponse.of(planners.changeSaleProduct(
+            Long.valueOf(jwt.getSubject()),
+            plannerItemId,
+            request == null ? null : request.saleProductId()));
     }
 
     @DeleteMapping("/items/{plannerItemId}")
