@@ -24,7 +24,7 @@ public class User {
     @Column(nullable = false, length = 32)
     private Provider provider;
 
-    @Column(name = "provider_id", nullable = false, length = 255)
+    @Column(name = "provider_id", length = 255)
     private String providerId;
 
     @Enumerated(EnumType.STRING)
@@ -73,6 +73,7 @@ public class User {
     public void delete(Instant deletedAt) {
         if (this.deletedAt == null) {
             this.deletedAt = deletedAt;
+            this.providerId = null;
         }
     }
 
