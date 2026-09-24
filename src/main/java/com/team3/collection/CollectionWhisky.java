@@ -28,4 +28,8 @@ public class CollectionWhisky {
         this.collectionId = collectionId;
         this.whiskyId = whiskyId;
     }
+
+    public Long whiskyId() {
+        return whiskyId;
+    }
 }
