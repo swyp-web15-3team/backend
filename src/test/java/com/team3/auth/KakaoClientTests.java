@@ -36,11 +36,32 @@ class KakaoClientTests {
         server.expect(requestTo("https://kauth.kakao.com/oauth/token")).andExpect(method(HttpMethod.POST))
             .andExpect(content().formData(form)).andRespond(
                 withSuccess("{\"access_token\":\"provider-token\",\"expires_in\":100}", MediaType.APPLICATION_JSON));
-        server.expect(requestTo("https://kapi.kakao.com/v2/user/me")).andExpect(method(HttpMethod.GET))
+        server.expect(requestTo("https://kapi.kakao.com/v2/user/me?secure_resource=true"))
+            .andExpect(method(HttpMethod.GET))
             .andExpect(header("Authorization", "Bearer provider-token"))
             .andRespond(withSuccess("{\"id\":123,\"kakao_account\":{}}", MediaType.APPLICATION_JSON));
-        assertThat(client.userId("code+&=", "https://frontend.test/auth/kakao/callback")).isEqualTo(123L);
+        assertThat(client.userInfo("code+&=", "https://frontend.test/auth/kakao/callback"))
+            .isEqualTo(new KakaoClient.UserInfo(123L, null));
         server.verify();
+    }
+
+    @Test
+    void readsProfileImageAndAllowsMissingProfileInformation() {
+        for (String account : new String[]{"", ",\"kakao_account\":{}",
+                ",\"kakao_account\":{\"profile\":{}}",
+                ",\"kakao_account\":{\"profile\":{\"profile_image_url\":\"https://img.test/photo.jpg\"}}"}) {
+            server.reset();
+            server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
+                .andRespond(withSuccess("{\"access_token\":\"token\"}", MediaType.APPLICATION_JSON));
+            server.expect(requestTo("https://kapi.kakao.com/v2/user/me?secure_resource=true"))
+                .andRespond(withSuccess("{\"id\":123" + account + "}", MediaType.APPLICATION_JSON));
+            KakaoClient.UserInfo user = client.userInfo("code", "https://frontend.test/callback");
+            assertThat(user.id()).isEqualTo(123L);
+            assertThat(user.profileImageUrl()).isEqualTo(account.contains("profile_image_url")
+                ? "https://img.test/photo.jpg"
+                : null);
+            server.verify();
+        }
     }
 
     @Test
@@ -64,7 +85,7 @@ class KakaoClientTests {
             server.reset();
             server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
                 .andRespond(withSuccess("{\"access_token\":\"token\"}", MediaType.APPLICATION_JSON));
-            server.expect(requestTo("https://kapi.kakao.com/v2/user/me"))
+            server.expect(requestTo("https://kapi.kakao.com/v2/user/me?secure_resource=true"))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
             assertFailure(HttpStatus.BAD_GATEWAY);
         }
@@ -112,7 +133,7 @@ class KakaoClientTests {
     }
 
     private void assertFailure(HttpStatus status) {
-        assertThatThrownBy(() -> client.userId("code", "https://frontend.test/auth/kakao/callback"))
+        assertThatThrownBy(() -> client.userInfo("code", "https://frontend.test/auth/kakao/callback"))
             .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
                 assertThat(ex.getStatusCode()).isEqualTo(status);
                 assertThat(ex.getMessage()).doesNotContain("provider-secret");

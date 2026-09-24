@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.team3.common.exception.ErrorCode;
+import com.team3.user.enums.UserErrorCode;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,7 +24,7 @@ public class AuthAccessDeniedHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
         AccessDeniedException exception) throws IOException {
-        ErrorCode errorCode = ErrorCode.ACTIVE_USER_REQUIRED;
+        UserErrorCode errorCode = UserErrorCode.ACTIVE_USER_REQUIRED;
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(errorCode.getStatus(), errorCode.getMessage());
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", errorCode.getCode());

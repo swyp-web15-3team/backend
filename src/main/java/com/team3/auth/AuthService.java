@@ -1,11 +1,12 @@
 package com.team3.auth;
 
 import com.team3.auth.exception.AlreadySignedUpException;
-import com.team3.auth.exception.DeletedUserException;
+import com.team3.user.exception.DeletedUserException;
+import com.team3.user.exception.UserNotFoundException;
 import com.team3.auth.exception.InvalidUserIdException;
-import com.team3.user.AgreementType;
+import com.team3.user.enums.AgreementType;
 import com.team3.user.User;
-import com.team3.user.Provider;
+import com.team3.user.enums.Provider;
 import com.team3.user.UserAgreement;
 import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
@@ -13,9 +14,6 @@ import com.team3.user.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -68,13 +66,14 @@ public class AuthService {
         }
     }
 
-    public void signUp(Long userId, boolean marketingAgreed) {
+    public void signUp(Long userId, boolean marketingAgreed, String nickname) {
         User user = users.findLockedById(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user."));
+            .orElseThrow(UserNotFoundException::new);
         checkNotDeleted(user);
         if (!user.isPending()) {
             throw new AlreadySignedUpException();
         }
+        user.updateNickname(nickname);
         user.activate();
         agreements.saveAll(List.of(
             new UserAgreement(userId, AgreementType.AGE_OVER_14, true),
@@ -83,12 +82,14 @@ public class AuthService {
             new UserAgreement(userId, AgreementType.MARKETING, marketingAgreed)));
     }
 
-    public TokenPair issue(Long userId) {
+    public TokenPair issue(Long userId, String profileImageUrl) {
         if (userId == null || userId <= 0) {
             throw new InvalidUserIdException();
         }
-        checkNotDeleted(users.findLockedById(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user.")));
+        User user = users.findLockedById(userId)
+            .orElseThrow(UserNotFoundException::new);
+        checkNotDeleted(user);
+        user.updateProfileImageUrl(profileImageUrl);
         String refresh = refreshTokens.issue(userId);
         return tokens(userId, refresh);
     }
@@ -96,7 +97,7 @@ public class AuthService {
     public TokenPair refresh(String rawToken) {
         Long userId = refreshTokens.userId(rawToken);
         User user = users.findLockedById(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user."));
+            .orElseThrow(UserNotFoundException::new);
         checkNotDeleted(user);
         RefreshTokenService.Rotation rotated = refreshTokens.refresh(rawToken, userId);
         return tokens(rotated.userId(), rotated.refreshToken());
@@ -110,7 +111,7 @@ public class AuthService {
     public void withdraw(Long userId, KakaoClient kakao) {
         Instant startedAt = clock.instant();
         User user = users.findById(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user."));
+            .orElseThrow(UserNotFoundException::new);
         if (user.isDeleted()) {
             return;
         }
@@ -121,7 +122,7 @@ public class AuthService {
 
     private void finalizeWithdrawal(Long userId, Instant startedAt) {
         User user = users.findLockedById(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user."));
+            .orElseThrow(UserNotFoundException::new);
         if (!user.isDeleted()) {
             user.delete(startedAt);
             refreshTokens.revokeAll(userId);

@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
 
 @Getter
 @RequiredArgsConstructor
-public enum ErrorCode {
+public enum ErrorCode implements ErrorCodeDefinition {
     AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "AUTH_001", "인증이 필요합니다."),
 
     COLLECTION_NAME_DUPLICATE(HttpStatus.CONFLICT, "COLLECTION_001", "이미 존재하는 관심 그룹 이름입니다."),
@@ -19,11 +19,7 @@ public enum ErrorCode {
 
     ALREADY_SIGNED_UP(HttpStatus.CONFLICT, "AUTH_002", "이미 가입이 완료된 사용자입니다."),
 
-    DELETED_USER(HttpStatus.FORBIDDEN, "AUTH_003", "탈퇴한 사용자입니다."),
-
     INVALID_USER_ID(HttpStatus.BAD_REQUEST, "AUTH_004", "유효하지 않은 사용자 ID입니다."),
-
-    ACTIVE_USER_REQUIRED(HttpStatus.FORBIDDEN, "AUTH_005", "가입이 완료된 활성 사용자만 접근할 수 있습니다."),
 
     PLANNER_ITEMS_MISSING(HttpStatus.BAD_REQUEST, "PLANNER_001", "추가할 상품이 없습니다."),
 

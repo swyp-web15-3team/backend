@@ -1,5 +1,9 @@
 package com.team3.user;
 
+import com.team3.user.enums.UserStatus;
+
+import com.team3.user.enums.Provider;
+
 import java.time.Instant;
 
 import jakarta.persistence.Column;
@@ -24,7 +28,7 @@ public class User {
     @Column(nullable = false, length = 32)
     private Provider provider;
 
-    @Column(name = "provider_id", nullable = false, length = 255)
+    @Column(name = "provider_id", length = 255)
     private String providerId;
 
     @Enumerated(EnumType.STRING)
@@ -33,6 +37,12 @@ public class User {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    @Column(length = 30)
+    private String nickname;
+
+    @Column(name = "profile_image_url", length = 2048)
+    private String profileImageUrl;
 
     protected User() {
     }
@@ -70,9 +80,28 @@ public class User {
         return deletedAt;
     }
 
+    public String nickname() {
+        return nickname;
+    }
+
+    public String profileImageUrl() {
+        return profileImageUrl;
+    }
+
+    public void updateProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
+    }
+
+    public void updateNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
     public void delete(Instant deletedAt) {
         if (this.deletedAt == null) {
             this.deletedAt = deletedAt;
+            this.providerId = null;
+            this.nickname = null;
+            this.profileImageUrl = null;
         }
     }
 

@@ -1,11 +1,11 @@
-package com.team3.auth.exception;
+package com.team3.user.exception;
 
 import com.team3.common.exception.CustomException;
-import com.team3.common.exception.ErrorCode;
+import com.team3.user.enums.UserErrorCode;
 
 public class DeletedUserException extends CustomException {
 
     public DeletedUserException() {
-        super(ErrorCode.DELETED_USER);
+        super(UserErrorCode.DELETED_USER);
     }
 }

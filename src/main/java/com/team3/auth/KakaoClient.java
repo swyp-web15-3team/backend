@@ -50,7 +50,7 @@ public class KakaoClient {
         return builder.requestFactory(factory).build();
     }
 
-    public long userId(String code, String redirectUri) {
+    public UserInfo userInfo(String code, String redirectUri) {
         try {
             URI redirect = URI.create(redirectUri);
             if (redirect.getHost() == null || redirect.getFragment() != null
@@ -74,12 +74,13 @@ public class KakaoClient {
             if (token == null || token.accessToken() == null || token.accessToken().isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Invalid Kakao response.");
             }
-            User user = client.get().uri("https://kapi.kakao.com/v2/user/me")
+            User user = client.get().uri("https://kapi.kakao.com/v2/user/me?secure_resource=true")
                 .headers(headers -> headers.setBearerAuth(token.accessToken())).retrieve().body(User.class);
             if (user == null || user.id() == null || user.id() <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Invalid Kakao response.");
             }
-            return user.id();
+            Profile profile = user.account() == null ? null : user.account().profile();
+            return new UserInfo(user.id(), profile == null ? null : profile.profileImageUrl());
         } catch (RestClientResponseException ex) {
             HttpStatus status = ex.getStatusCode().value() == 400 || ex.getStatusCode().value() == 401
                 ? HttpStatus.UNAUTHORIZED
@@ -129,7 +130,18 @@ public class KakaoClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record User(Long id) {
+    record User(Long id, @JsonProperty("kakao_account") Account account) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Account(Profile profile) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Profile(@JsonProperty("profile_image_url") String profileImageUrl) {
+    }
+
+    public record UserInfo(long id, String profileImageUrl) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

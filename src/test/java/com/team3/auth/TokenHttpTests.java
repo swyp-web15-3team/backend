@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.util.Optional;
 
-import com.team3.user.Provider;
+import com.team3.user.enums.Provider;
 import com.team3.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -155,7 +155,7 @@ class TokenHttpTests {
             .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Bearer")))
             .andExpect(jsonPath("$.status").value(401))
             .andExpect(jsonPath("$.code").value("AUTH_001"));
-        mvc.perform(get("/api/v1/test/me").header("Authorization", "Bearer " + tokens.issue(1L).accessToken()))
+        mvc.perform(get("/api/v1/test/me").header("Authorization", "Bearer " + tokens.issue(1L, null).accessToken()))
             .andExpect(status().isOk()).andExpect(content().string("1"));
     }
 
@@ -180,7 +180,7 @@ class TokenHttpTests {
         User user = new User(Provider.KAKAO, "pending");
         when(users.findById(1L)).thenReturn(Optional.of(user));
         when(users.findLockedById(1L)).thenReturn(Optional.of(user));
-        String bearer = "Bearer " + tokens.issue(1L).accessToken();
+        String bearer = "Bearer " + tokens.issue(1L, null).accessToken();
 
         mvc.perform(get("/api/v1/test/me").header(HttpHeaders.AUTHORIZATION, bearer))
             .andExpect(status().isForbidden())
@@ -192,7 +192,8 @@ class TokenHttpTests {
             .andExpect(status().isOk());
         mvc.perform(post("/api/v1/auth/sign-up").header(HttpHeaders.AUTHORIZATION, bearer)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"ageOver14Agreed\":true,\"termsOfServiceAgreed\":true,\"privacyPolicyAgreed\":true}"))
+            .content(
+                "{\"ageOver14Agreed\":true,\"termsOfServiceAgreed\":true,\"privacyPolicyAgreed\":true,\"nickname\":\"tester\"}"))
             .andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/test/me").header(HttpHeaders.AUTHORIZATION, bearer))
             .andExpect(status().isOk()).andExpect(content().string("1"));
