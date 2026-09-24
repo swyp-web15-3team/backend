@@ -5,6 +5,7 @@ import com.team3.collection.dto.CollectionsResponse;
 import com.team3.collection.dto.CreateCollectionRequest;
 import com.team3.collection.dto.AddWhiskyRequest;
 import com.team3.collection.dto.DeleteWhiskiesRequest;
+import com.team3.collection.dto.MoveCollectionWhiskiesRequest;
 import com.team3.collection.dto.UpdateCollectionRequest;
 import com.team3.common.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -77,6 +78,19 @@ public class CollectionController {
         @PathVariable Long collectionId,
         @Valid @RequestBody AddWhiskyRequest request) {
         collections.addWhisky(Long.valueOf(jwt.getSubject()), collectionId, request.whiskyId());
+    }
+
+    @PostMapping("/{collectionId}/whiskies/move")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void moveWhiskies(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable Long collectionId,
+        @Valid @RequestBody MoveCollectionWhiskiesRequest request) {
+        collections.moveWhiskies(
+            Long.valueOf(jwt.getSubject()),
+            collectionId,
+            request.targetCollectionId(),
+            request.whiskyIds());
     }
 
     @DeleteMapping("/{collectionId}/whiskies")
