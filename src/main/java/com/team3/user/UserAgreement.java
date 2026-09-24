@@ -1,5 +1,7 @@
 package com.team3.user;
 
+import com.team3.user.enums.AgreementType;
+
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;

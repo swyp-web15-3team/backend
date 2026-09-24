@@ -6,7 +6,7 @@ import com.team3.auth.dto.LogoutRequest;
 import com.team3.auth.dto.RefreshRequest;
 import com.team3.auth.dto.RefreshResponse;
 import com.team3.auth.dto.SignUpRequest;
-import com.team3.user.Provider;
+import com.team3.user.enums.Provider;
 import com.team3.common.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 

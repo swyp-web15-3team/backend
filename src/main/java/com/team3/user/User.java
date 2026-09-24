@@ -1,5 +1,8 @@
 package com.team3.user;
 
+import com.team3.user.enums.UserStatus;
+import com.team3.user.enums.Provider;
+
 import java.time.Instant;
 
 import jakarta.persistence.Column;

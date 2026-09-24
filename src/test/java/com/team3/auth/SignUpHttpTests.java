@@ -1,7 +1,7 @@
 package com.team3.auth;
 
-import com.team3.user.AgreementType;
-import com.team3.user.Provider;
+import com.team3.user.enums.AgreementType;
+import com.team3.user.enums.Provider;
 import com.team3.user.User;
 import com.team3.user.UserAgreement;
 import com.team3.user.UserAgreementRepository;

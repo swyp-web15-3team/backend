@@ -24,7 +24,7 @@ import java.util.Set;
 
 import com.team3.security.SecurityConfig;
 import com.team3.user.User;
-import com.team3.user.Provider;
+import com.team3.user.enums.Provider;
 import com.team3.user.UserRepository;
 import com.team3.whisky.WhiskyRepository;
 

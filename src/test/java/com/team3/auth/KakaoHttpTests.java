@@ -1,7 +1,7 @@
 package com.team3.auth;
 
 import com.team3.user.User;
-import com.team3.user.Provider;
+import com.team3.user.enums.Provider;
 import com.team3.user.UserAgreementRepository;
 import com.team3.user.UserRepository;
 import com.team3.whisky.PriceHistoryRepository;

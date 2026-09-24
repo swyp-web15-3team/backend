@@ -1,5 +1,7 @@
 package com.team3.user;
 
+import com.team3.user.enums.Provider;
+
 import java.util.Optional;
 
 import jakarta.persistence.LockModeType;

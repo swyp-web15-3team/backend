@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.team3.common.exception.CustomException;
-import com.team3.common.exception.ErrorCode;
+import com.team3.common.exception.ErrorCodeDefinition;
 
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
@@ -70,7 +70,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<Object> handleCustomException(CustomException ex, WebRequest request) {
-        ErrorCode errorCode = ex.getErrorCode();
+        ErrorCodeDefinition errorCode = ex.getErrorCode();
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(errorCode.getStatus(), errorCode.getMessage());
         problem.setProperty("code", errorCode.getCode());
         ex.getProperties().forEach(problem::setProperty);
