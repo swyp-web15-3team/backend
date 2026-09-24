@@ -27,6 +27,8 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -142,6 +144,79 @@ class SignUpHttpTests {
                 .andExpect(jsonPath("$.errors[0].field").value("nickname"));
         }
         verify(users, never()).findLockedById(1L);
+    }
+
+    @Test
+    void updatesNicknameAndRejectsInvalidValues() throws Exception {
+        User user = new User(Provider.KAKAO, "123");
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", 1L);
+        user.activate();
+        user.updateNickname("before");
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        String bearer = "Bearer " + tokens.issue(1L, "https://img.test/photo.jpg").accessToken();
+        String nickname = "가".repeat(30);
+        mvc.perform(put("/api/v1/users/me/profile").header("Authorization", bearer)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"nickname\":\"" + nickname + "\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.id").value(1))
+            .andExpect(jsonPath("$.data.nickname").value(nickname))
+            .andExpect(jsonPath("$.data.profileImageUrl").value("https://img.test/photo.jpg"))
+            .andExpect(jsonPath("$.data.providerId").doesNotExist());
+        assertThat(user.nickname()).isEqualTo(nickname);
+        for (String body : new String[]{"{}", "{\"nickname\":null}", "{\"nickname\":\" \"}",
+                "{\"nickname\":\"" + "a".repeat(31) + "\"}"}) {
+            mvc.perform(put("/api/v1/users/me/profile").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("nickname"));
+        }
+        assertThat(user.nickname()).isEqualTo(nickname);
+        user.delete(java.time.Instant.now());
+        assertThat(user.nickname()).isNull();
+        mvc.perform(put("/api/v1/users/me/profile").header("Authorization", bearer)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"nickname\":\"after\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void returnsUserErrorCodeWhenUserDisappearsBeforeUpdate() throws Exception {
+        User user = new User(Provider.KAKAO, "123");
+        user.activate();
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        String bearer = "Bearer " + tokens.issue(1L, null).accessToken();
+        when(users.findLockedById(1L)).thenReturn(Optional.empty());
+        mvc.perform(put("/api/v1/users/me/profile").header("Authorization", bearer)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"nickname\":\"tester\"}"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("USER_001"))
+            .andExpect(jsonPath("$.detail").value("사용자를 찾을 수 없습니다."));
+    }
+
+    @Test
+    void getsCurrentUserAndRequiresAnActiveAccount() throws Exception {
+        mvc.perform(get("/api/v1/users/me")).andExpect(status().isUnauthorized());
+        User user = new User(Provider.KAKAO, "123");
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", 1L);
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        String bearer = "Bearer " + tokens.issue(1L, "https://img.test/photo.jpg").accessToken();
+        mvc.perform(get("/api/v1/users/me").header("Authorization", bearer))
+            .andExpect(status().isForbidden());
+        user.activate();
+        user.updateNickname("tester");
+        clearInvocations(users);
+        mvc.perform(get("/api/v1/users/me").header("Authorization", bearer))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.id").value(1))
+            .andExpect(jsonPath("$.data.nickname").value("tester"))
+            .andExpect(jsonPath("$.data.profileImageUrl").value("https://img.test/photo.jpg"))
+            .andExpect(jsonPath("$.data.providerId").doesNotExist());
+        verify(users, never()).findLockedById(1L);
+        user.delete(java.time.Instant.now());
+        mvc.perform(get("/api/v1/users/me").header("Authorization", bearer))
+            .andExpect(status().isForbidden());
     }
 
     private String agreementBody(String omitted, String declined) {
