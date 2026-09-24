@@ -18,5 +18,7 @@ public interface CollectionRepository extends JpaRepository<Collection, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Collection> findByIdAndUserId(Long id, Long userId);
 
+    boolean existsByIdAndUserId(Long id, Long userId);
+
     List<Collection> findAllByUserId(Long userId, Sort sort);
 }

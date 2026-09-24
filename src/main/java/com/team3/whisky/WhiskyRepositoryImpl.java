@@ -2,6 +2,7 @@ package com.team3.whisky;
 
 import java.util.List;
 
+import com.team3.collection.QCollectionWhisky;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.JPAExpressions;
@@ -22,6 +23,7 @@ public class WhiskyRepositoryImpl implements WhiskyRepositoryCustom {
     private static final QWhiskyRegion REGION = QWhiskyRegion.whiskyRegion;
     private static final QSaleProduct SALE_PRODUCT = QSaleProduct.saleProduct;
     private static final QRetailer RETAILER = QRetailer.retailer;
+    private static final QCollectionWhisky COLLECTION_WHISKY = QCollectionWhisky.collectionWhisky;
 
     private final JPAQueryFactory queryFactory;
     private final Querydsl querydsl;
@@ -55,6 +57,33 @@ public class WhiskyRepositoryImpl implements WhiskyRepositoryCustom {
             .orderBy(WHISKY.id.asc())
             .limit(limit)
             .fetch();
+    }
+
+    @Override
+    public Page<Whisky> findByCollectionId(Long collectionId, Pageable pageable) {
+        Long total = queryFactory.select(COLLECTION_WHISKY.id.count())
+            .from(COLLECTION_WHISKY)
+            .where(COLLECTION_WHISKY.collectionId.eq(collectionId))
+            .fetchOne();
+        long totalCount = total == null ? 0L : total;
+        if (totalCount == 0L || pageable.isPaged() && pageable.getOffset() >= totalCount) {
+            return new PageImpl<>(List.of(), pageable, totalCount);
+        }
+        List<Whisky> content = queryFactory.selectFrom(WHISKY)
+            .join(COLLECTION_WHISKY)
+            .on(COLLECTION_WHISKY.whiskyId.eq(WHISKY.id))
+            .join(WHISKY.category, CATEGORY)
+            .fetchJoin()
+            .leftJoin(WHISKY.origin, ORIGIN)
+            .fetchJoin()
+            .leftJoin(WHISKY.region, REGION)
+            .fetchJoin()
+            .where(COLLECTION_WHISKY.collectionId.eq(collectionId))
+            .orderBy(WHISKY.name.asc(), WHISKY.id.asc())
+            .offset(pageable.getOffset())
+            .limit(pageable.getPageSize())
+            .fetch();
+        return new PageImpl<>(content, pageable, totalCount);
     }
 
     @Override
