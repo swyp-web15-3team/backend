@@ -9,6 +9,7 @@ import com.team3.collection.dto.CollectionsResponse;
 import com.team3.collection.exception.CollectionNotFoundException;
 import com.team3.collection.exception.DefaultCollectionImmutableException;
 import com.team3.collection.exception.DuplicateCollectionNameException;
+import com.team3.collection.exception.SameCollectionMoveException;
 import com.team3.collection.exception.WhiskyNotFoundException;
 import com.team3.whisky.WhiskyRepository;
 
@@ -105,6 +106,25 @@ public class CollectionService {
         List<CollectionWhisky> memberships = collectionWhiskies
             .findAllByCollectionIdAndWhiskyIdIn(collectionId, uniqueWhiskyIds);
         collectionWhiskies.deleteAllInBatch(memberships);
+    }
+
+    public void moveWhiskies(Long userId, Long collectionId, Long targetCollectionId, List<Long> whiskyIds) {
+        if (collectionId.equals(targetCollectionId)) {
+            throw new SameCollectionMoveException();
+        }
+        findOwnedCollection(userId, collectionId);
+        findOwnedCollection(userId, targetCollectionId);
+        Set<Long> uniqueWhiskyIds = new LinkedHashSet<>(whiskyIds);
+        assertWhiskiesExist(uniqueWhiskyIds);
+        List<CollectionWhisky> memberships = collectionWhiskies
+            .findAllByCollectionIdAndWhiskyIdIn(collectionId, uniqueWhiskyIds);
+        collectionWhiskies.deleteAllInBatch(memberships);
+        for (CollectionWhisky membership : memberships) {
+            Long whiskyId = membership.whiskyId();
+            if (!collectionWhiskies.existsByCollectionIdAndWhiskyId(targetCollectionId, whiskyId)) {
+                collectionWhiskies.save(new CollectionWhisky(targetCollectionId, whiskyId));
+            }
+        }
     }
 
     private void findOwnedCollection(Long userId, Long collectionId) {
