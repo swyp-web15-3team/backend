@@ -203,7 +203,7 @@ class CollectionHttpTests {
 
     @Test
     void rejectsUpdatingDefaultCollection() throws Exception {
-        Collection collection = collection(12L, "기본", true);
+        Collection collection = collection(12L, "기본 관심 목록", true);
         when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
 
         mvc.perform(patch("/api/v1/collections/12").header("Authorization", "Bearer access-token")
@@ -239,7 +239,7 @@ class CollectionHttpTests {
 
     @Test
     void rejectsDeletingDefaultCollection() throws Exception {
-        Collection collection = collection(12L, "기본", true);
+        Collection collection = collection(12L, "기본 관심 목록", true);
         when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
 
         mvc.perform(delete("/api/v1/collections/12").header("Authorization", "Bearer access-token"))
@@ -357,7 +357,7 @@ class CollectionHttpTests {
 
     @Test
     void addsWhiskyToOwnedDefaultCollectionIdempotently() throws Exception {
-        Collection collection = collection(12L, "기본", true);
+        Collection collection = collection(12L, "기본 관심 목록", true);
         when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
         when(whiskies.countByIdIn(Set.of(101L))).thenReturn(1L);
         when(collectionWhiskies.existsByCollectionIdAndWhiskyId(12L, 101L)).thenReturn(false, true);

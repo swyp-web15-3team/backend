@@ -13,7 +13,7 @@ public enum ErrorCode implements ErrorCodeDefinition {
 
     COLLECTION_NOT_FOUND(HttpStatus.NOT_FOUND, "COLLECTION_002", "관심 그룹을 찾을 수 없습니다."),
 
-    DEFAULT_COLLECTION_IMMUTABLE(HttpStatus.BAD_REQUEST, "COLLECTION_003", "기본 관심 그룹은 수정할 수 없습니다."),
+    DEFAULT_COLLECTION_IMMUTABLE(HttpStatus.BAD_REQUEST, "COLLECTION_003", "기본 관심 목록은 수정할 수 없습니다."),
 
     COLLECTION_SAME_GROUP(HttpStatus.BAD_REQUEST, "COLLECTION_004", "같은 관심 그룹으로는 이동할 수 없습니다."),
 

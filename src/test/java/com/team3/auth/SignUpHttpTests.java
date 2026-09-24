@@ -13,6 +13,7 @@ import com.team3.whisky.WhiskyOriginRepository;
 import com.team3.whisky.WhiskyRegionRepository;
 import com.team3.whisky.WhiskyRepository;
 import com.team3.collection.CollectionRepository;
+import com.team3.collection.Collection;
 import com.team3.collection.CollectionWhiskyRepository;
 import com.team3.planner.PlannerItemRepository;
 import com.team3.planner.PlannerRepository;
@@ -71,6 +72,8 @@ class SignUpHttpTests {
     private AuthService tokens;
     @MockitoBean
     private UserRepository users;
+    @Autowired
+    private CollectionRepository collections;
     @MockitoBean
     private UserAgreementRepository agreements;
     @MockitoBean
@@ -90,6 +93,10 @@ class SignUpHttpTests {
         mvc.perform(signUp(BODY)).andExpect(status().isNoContent()).andExpect(content().string(""));
         assertThat(user.isPending()).isFalse();
         assertThat(user.nickname()).isEqualTo("tester");
+        ArgumentCaptor<Collection> created = ArgumentCaptor.forClass(Collection.class);
+        verify(collections).save(created.capture());
+        assertThat(created.getValue().name()).isEqualTo("기본 관심 목록");
+        assertThat(created.getValue().isDefault()).isTrue();
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<UserAgreement>> saved = ArgumentCaptor.forClass(List.class);

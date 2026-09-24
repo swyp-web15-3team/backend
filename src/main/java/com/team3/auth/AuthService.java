@@ -4,6 +4,8 @@ import com.team3.auth.exception.AlreadySignedUpException;
 import com.team3.user.exception.DeletedUserException;
 import com.team3.user.exception.UserNotFoundException;
 import com.team3.auth.exception.InvalidUserIdException;
+import com.team3.collection.Collection;
+import com.team3.collection.CollectionRepository;
 import com.team3.user.enums.AgreementType;
 import com.team3.user.User;
 import com.team3.user.enums.Provider;
@@ -32,15 +34,18 @@ public class AuthService {
     private final JwtProvider jwtProvider;
     private final UserRepository users;
     private final UserAgreementRepository agreements;
+    private final CollectionRepository collections;
     private final TransactionTemplate withdrawalTransaction;
     private final Clock clock;
 
     public AuthService(RefreshTokenService refreshTokens, JwtProvider jwtProvider, UserRepository users,
-        UserAgreementRepository agreements, PlatformTransactionManager transactionManager, Clock clock) {
+        UserAgreementRepository agreements, CollectionRepository collections,
+        PlatformTransactionManager transactionManager, Clock clock) {
         this.refreshTokens = refreshTokens;
         this.jwtProvider = jwtProvider;
         this.users = users;
         this.agreements = agreements;
+        this.collections = collections;
         this.withdrawalTransaction = new TransactionTemplate(transactionManager);
         this.clock = clock;
     }
@@ -75,6 +80,9 @@ public class AuthService {
         }
         user.updateNickname(nickname);
         user.activate();
+        Collection defaultCollection = collections.findByUserIdAndIsDefaultTrue(userId)
+            .orElseGet(() -> new Collection(userId, "기본 관심 목록", true));
+        collections.save(defaultCollection);
         agreements.saveAll(List.of(
             new UserAgreement(userId, AgreementType.AGE_OVER_14, true),
             new UserAgreement(userId, AgreementType.TERMS_OF_SERVICE, true),
