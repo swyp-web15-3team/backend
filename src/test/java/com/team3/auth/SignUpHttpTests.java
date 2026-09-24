@@ -61,7 +61,7 @@ import org.mockito.ArgumentCaptor;
 class SignUpHttpTests {
 
     private static final String BODY = "{\"ageOver14Agreed\":true,\"termsOfServiceAgreed\":true,"
-        + "\"privacyPolicyAgreed\":true}";
+        + "\"privacyPolicyAgreed\":true,\"nickname\":\"tester\"}";
 
     @Autowired
     private MockMvc mvc;
@@ -87,6 +87,7 @@ class SignUpHttpTests {
         when(users.findLockedById(1L)).thenReturn(Optional.of(user));
         mvc.perform(signUp(BODY)).andExpect(status().isNoContent()).andExpect(content().string(""));
         assertThat(user.isPending()).isFalse();
+        assertThat(user.nickname()).isEqualTo("tester");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<UserAgreement>> saved = ArgumentCaptor.forClass(List.class);
@@ -132,8 +133,20 @@ class SignUpHttpTests {
         verify(users, never()).findLockedById(1L);
     }
 
+    @Test
+    void rejectsInvalidNicknameOnSignUp() throws Exception {
+        for (String field : new String[]{"", ",\"nickname\":null", ",\"nickname\":\" \"",
+                ",\"nickname\":\"" + "a".repeat(31) + "\""}) {
+            String body = BODY.replace(",\"nickname\":\"tester\"", field);
+            mvc.perform(signUp(body)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("nickname"));
+        }
+        verify(users, never()).findLockedById(1L);
+    }
+
     private String agreementBody(String omitted, String declined) {
         List<String> fields = new java.util.ArrayList<>();
+        fields.add("\"nickname\":\"tester\"");
         addRequired(fields, "ageOver14Agreed", omitted, declined);
         addRequired(fields, "termsOfServiceAgreed", omitted, declined);
         addRequired(fields, "privacyPolicyAgreed", omitted, declined);
@@ -147,7 +160,7 @@ class SignUpHttpTests {
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder signUp(String body) {
-        String accessToken = tokens.issue(1L).accessToken();
+        String accessToken = tokens.issue(1L, null).accessToken();
         clearInvocations(users);
         return post("/api/v1/auth/sign-up").contentType(MediaType.APPLICATION_JSON).content(body)
             .header("Authorization", "Bearer " + accessToken);

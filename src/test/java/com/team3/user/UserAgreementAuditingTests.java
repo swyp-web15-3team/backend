@@ -1,6 +1,7 @@
 package com.team3.user;
 
 import com.team3.user.enums.AgreementType;
+
 import com.team3.user.enums.Provider;
 
 import static org.assertj.core.api.Assertions.assertThat;

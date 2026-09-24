@@ -119,7 +119,8 @@ class KakaoHttpTests {
     @Test
     void exchangesCodeWithoutSessionOrCookies() throws Exception {
         Long id = 42L;
-        when(kakao.userId("code", "https://frontend.test/callback")).thenReturn(123L);
+        when(kakao.userInfo("code", "https://frontend.test/callback"))
+            .thenReturn(new KakaoClient.UserInfo(123L, "https://img.test/photo.jpg"));
         User user = mock(User.class);
         when(user.id()).thenReturn(id);
         when(users.findByProviderAndProviderId(Provider.KAKAO, "123")).thenReturn(Optional.of(user));
@@ -132,6 +133,7 @@ class KakaoHttpTests {
             .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
             .andExpect(header().string("Referrer-Policy", "no-referrer"))
             .andExpect(jsonPath("$.data.isNewUser").value(false))
+            .andExpect(jsonPath("$.data.profileImageUrl").value("https://img.test/photo.jpg"))
             .andExpect(jsonPath("$.data.refreshToken").isString())
             .andExpect(jsonPath("$.data.expiresIn").doesNotExist())
             .andReturn();
@@ -141,11 +143,13 @@ class KakaoHttpTests {
         assertThat(result.getRequest().getSession(false)).isNull();
         assertThat(result.getResponse().getHeader("Set-Cookie")).isNull();
         verify(users, never()).saveAndFlush(any(User.class));
+        verify(user).updateProfileImageUrl("https://img.test/photo.jpg");
     }
 
     @Test
     void returnsNewUserWhenRegistrationSucceeds() throws Exception {
-        when(kakao.userId("code", "https://frontend.test/callback")).thenReturn(123L);
+        when(kakao.userInfo("code", "https://frontend.test/callback"))
+            .thenReturn(new KakaoClient.UserInfo(123L, "https://img.test/photo.jpg"));
         User user = mock(User.class);
         when(user.id()).thenReturn(42L);
         when(user.isPending()).thenReturn(true);
@@ -163,6 +167,7 @@ class KakaoHttpTests {
             .asText();
         assertThat(decoder.decode(access).getSubject()).isEqualTo("42");
         verify(users).saveAndFlush(any(User.class));
+        verify(user).updateProfileImageUrl("https://img.test/photo.jpg");
     }
 
     @Test
@@ -184,7 +189,7 @@ class KakaoHttpTests {
     @Test
     void preservesProviderFailureStatusWithoutIssuingTokens() throws Exception {
         for (HttpStatus status : new HttpStatus[]{HttpStatus.UNAUTHORIZED, HttpStatus.BAD_GATEWAY}) {
-            doThrow(new ResponseStatusException(status, "Kakao login failed.")).when(kakao).userId("code",
+            doThrow(new ResponseStatusException(status, "Kakao login failed.")).when(kakao).userInfo("code",
                 "https://frontend.test/callback");
             mvc.perform(post("/api/v1/auth/kakao").queryParam("redirectUri", "https://frontend.test/callback")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -208,7 +213,7 @@ class KakaoHttpTests {
         User user = new User(Provider.KAKAO, "123");
         when(users.findById(1L)).thenReturn(Optional.of(user));
         when(users.findLockedById(1L)).thenReturn(Optional.of(user));
-        String accessToken = tokens.issue(1L).accessToken();
+        String accessToken = tokens.issue(1L, null).accessToken();
 
         mvc.perform(delete("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken))
             .andExpect(status().isNoContent());

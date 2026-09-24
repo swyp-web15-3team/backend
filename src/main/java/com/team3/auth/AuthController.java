@@ -51,18 +51,19 @@ public class AuthController {
     @PostMapping("/kakao")
     public ApiResponse<KakaoLoginResponse> login(@Valid @RequestBody KakaoLoginRequest request,
         @RequestParam("redirectUri") String redirectUri) {
-        long kakaoId = kakaoClient().userId(request.code(), redirectUri);
-        AuthService.UserResult user = tokens.findOrCreateUser(Provider.KAKAO, Long.toString(kakaoId));
-        AuthService.TokenPair pair = tokens.issue(user.userId());
+        KakaoClient.UserInfo kakaoUser = kakaoClient().userInfo(request.code(), redirectUri);
+        AuthService.UserResult user = tokens.findOrCreateUser(Provider.KAKAO, Long.toString(kakaoUser.id()));
+        AuthService.TokenPair pair = tokens.issue(user.userId(), kakaoUser.profileImageUrl());
         return ApiResponse.of(
-            new KakaoLoginResponse(pair.accessToken(), pair.refreshToken(), user.isNewUser()));
+            new KakaoLoginResponse(pair.accessToken(), pair.refreshToken(), user.isNewUser(),
+                kakaoUser.profileImageUrl()));
     }
 
     @PostMapping("/sign-up")
     @SecurityRequirement(name = "bearerAuth")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void signUp(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody SignUpRequest request) {
-        tokens.signUp(userId(jwt), request.marketingAgreed());
+        tokens.signUp(userId(jwt), request.marketingAgreed(), request.nickname());
     }
 
     @DeleteMapping("/withdrawal")

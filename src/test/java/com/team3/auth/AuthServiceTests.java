@@ -2,6 +2,8 @@ package com.team3.auth;
 
 import com.team3.auth.exception.AlreadySignedUpException;
 import com.team3.user.exception.DeletedUserException;
+import com.team3.user.exception.UserNotFoundException;
+import com.team3.user.enums.UserErrorCode;
 import com.team3.auth.exception.InvalidUserIdException;
 import com.team3.common.exception.ErrorCode;
 import com.team3.user.enums.AgreementType;
@@ -87,8 +89,28 @@ class AuthServiceTests {
     }
 
     @Test
+    void refreshesKakaoPhotoOnLoginAndClearsItWhenUnavailableOrDeleted() {
+        User user = new User(Provider.KAKAO, "123");
+        user.activate();
+        user.updateNickname("tester");
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+        service.issue(1L, "https://img.test/first.jpg");
+        assertThat(user.profileImageUrl()).isEqualTo("https://img.test/first.jpg");
+        service.issue(1L, "https://img.test/second.jpg");
+        assertThat(user.profileImageUrl()).isEqualTo("https://img.test/second.jpg");
+        service.issue(1L, null);
+        assertThat(user.profileImageUrl()).isNull();
+        assertThat(user.nickname()).isEqualTo("tester");
+        user.updateProfileImageUrl("https://img.test/photo.jpg");
+        user.delete(clock.instant());
+        assertThat(user.providerId()).isNull();
+        assertThat(user.nickname()).isNull();
+        assertThat(user.profileImageUrl()).isNull();
+    }
+
+    @Test
     void issuesSignedAccessTokenAndStoresOnlyRefreshHash() throws Exception {
-        AuthService.TokenPair pair = service.issue(1L);
+        AuthService.TokenPair pair = service.issue(1L, null);
         Jwt jwt = decoder.decode(pair.accessToken());
         assertThat(jwt.getSubject()).isEqualTo("1");
         assertThat(Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt())).isEqualTo(Duration.ofMinutes(15));
@@ -112,7 +134,7 @@ class AuthServiceTests {
         when(repository.findByTokenHash(anyString()))
             .thenAnswer(invocation -> Optional.ofNullable(row[0]).filter(token -> invocation.getArgument(0)
                 .equals(ReflectionTestUtils.getField(token, "tokenHash"))));
-        AuthService.TokenPair original = service.issue(1L);
+        AuthService.TokenPair original = service.issue(1L, null);
         Instant expiration = row[0].expiresAt();
         AuthService.TokenPair rotated = service.refresh(original.refreshToken());
         assertThat(rotated.refreshToken()).isNotEqualTo(original.refreshToken());
@@ -139,8 +161,8 @@ class AuthServiceTests {
             .filter(row -> invocation.getArgument(0).equals(ReflectionTestUtils.getField(row, "tokenHash")))
             .findFirst());
         doAnswer(invocation -> rows.remove(invocation.getArgument(0))).when(repository).delete(any());
-        AuthService.TokenPair first = service.issue(1L);
-        AuthService.TokenPair second = service.issue(1L);
+        AuthService.TokenPair first = service.issue(1L, null);
+        AuthService.TokenPair second = service.issue(1L, null);
         service.logout(first.refreshToken());
         assertThat(rows).hasSize(1);
         assertUnauthorized(() -> service.refresh(first.refreshToken()));
@@ -166,9 +188,9 @@ class AuthServiceTests {
     @Test
     void rejectsExpiredAndIncorrectlySignedJwtAndWrongIssuer() {
         AuthService oldService = service(Clock.fixed(Instant.now().minusSeconds(3600), ZoneOffset.UTC));
-        assertThatThrownBy(() -> decoder.decode(oldService.issue(1L).accessToken()))
+        assertThatThrownBy(() -> decoder.decode(oldService.issue(1L, null).accessToken()))
             .isInstanceOf(JwtException.class);
-        String access = service.issue(1L).accessToken();
+        String access = service.issue(1L, null).accessToken();
         JwtDecoder wrongKey = config.jwtDecoder(config.jwtKey(
             properties("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=", "backend")), properties(SECRET, "backend"));
         assertThatThrownBy(() -> wrongKey.decode(access)).isInstanceOf(JwtException.class);
@@ -181,9 +203,9 @@ class AuthServiceTests {
     void rejectsWeakKeysAndInvalidUserIds() {
         assertThatThrownBy(() -> config.jwtKey(properties("YWJj", "backend")))
             .isInstanceOf(IllegalArgumentException.class);
-        assertInvalidUserId(() -> service.issue(null));
-        assertInvalidUserId(() -> service.issue(0L));
-        assertInvalidUserId(() -> service.issue(-1L));
+        assertInvalidUserId(() -> service.issue(null, null));
+        assertInvalidUserId(() -> service.issue(0L, null));
+        assertInvalidUserId(() -> service.issue(-1L, null));
         assertInvalidUserId(() -> new RefreshTokenService(repository, clock, properties(SECRET, "backend")).issue(0L));
     }
 
@@ -218,7 +240,7 @@ class AuthServiceTests {
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isTrue();
 
         when(users.findLockedById(7L)).thenReturn(Optional.of(pending));
-        service.signUp(7L, true);
+        service.signUp(7L, true, "tester");
         assertThat(pending.isPending()).isFalse();
 
         ArgumentCaptor<List<UserAgreement>> saved = agreementsCaptor();
@@ -228,13 +250,32 @@ class AuthServiceTests {
             tuple(AgreementType.PRIVACY_POLICY, true), tuple(AgreementType.MARKETING, true));
 
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isFalse();
-        assertThatThrownBy(() -> service.signUp(7L, true)).isInstanceOf(AlreadySignedUpException.class);
+        assertThatThrownBy(() -> service.signUp(7L, true, "tester")).isInstanceOf(AlreadySignedUpException.class);
     }
 
     @Test
-    void rejectsSignUpForUnknownUser() {
-        when(users.findLockedById(9L)).thenReturn(Optional.empty());
-        assertUnauthorized(() -> service.signUp(9L, false));
+    void rejectsUnknownUsersWithCustomExceptionAcrossAuthOperations() {
+        when(users.findLockedById(1L)).thenReturn(Optional.empty());
+        when(users.findById(1L)).thenReturn(Optional.empty());
+        KakaoClient kakao = mock(KakaoClient.class);
+        for (Runnable action : List.<Runnable>of(
+            () -> service.signUp(1L, false, "tester"),
+            () -> service.issue(1L, null),
+            () -> service.refresh("a".repeat(43)),
+            () -> service.withdraw(1L, kakao))) {
+            assertUserNotFound(action);
+        }
+        verifyNoInteractions(kakao);
+        when(users.findById(1L)).thenReturn(Optional.of(new User(Provider.KAKAO, "123")));
+        assertUserNotFound(() -> service.withdraw(1L, kakao));
+        verify(transactionManager).rollback(transaction);
+    }
+
+    private void assertUserNotFound(Runnable action) {
+        assertThatThrownBy(action::run).isInstanceOfSatisfying(UserNotFoundException.class, ex -> {
+            assertThat(ex.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
+            assertThat(ex.getErrorCode().getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        });
     }
 
     @Test
@@ -247,8 +288,8 @@ class AuthServiceTests {
         when(repository.findOwnerByTokenHash(anyString())).thenReturn(Optional.of(owner));
         assertThatThrownBy(() -> service.findOrCreateUser(Provider.KAKAO, "123"))
             .isInstanceOf(DeletedUserException.class);
-        assertThatThrownBy(() -> service.signUp(1L, false)).isInstanceOf(DeletedUserException.class);
-        assertThatThrownBy(() -> service.issue(1L)).isInstanceOf(DeletedUserException.class);
+        assertThatThrownBy(() -> service.signUp(1L, false, "tester")).isInstanceOf(DeletedUserException.class);
+        assertThatThrownBy(() -> service.issue(1L, null)).isInstanceOf(DeletedUserException.class);
         assertThatThrownBy(() -> service.refresh("a".repeat(43))).isInstanceOf(DeletedUserException.class);
     }
 
