@@ -11,6 +11,7 @@ import com.team3.collection.CollectionRepository;
 import com.team3.collection.CollectionWhiskyRepository;
 import com.team3.planner.PlannerItemRepository;
 import com.team3.planner.PlannerRepository;
+import com.team3.exchange.ExchangeRateRepository;
 import com.team3.curation.CurationRepository;
 import com.team3.curation.CurationWhiskyRepository;
 import com.team3.whisky.WhiskyOriginRepository;
@@ -105,6 +106,9 @@ class KakaoHttpTests {
 
     @MockitoBean
     private PlannerItemRepository plannerItems;
+
+    @MockitoBean
+    private ExchangeRateRepository exchangeRates;
 
     @MockitoBean
     private CurationRepository curationRepository;

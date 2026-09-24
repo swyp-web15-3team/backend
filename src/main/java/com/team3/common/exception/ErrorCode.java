@@ -59,7 +59,16 @@ public enum ErrorCode {
 
     PLANNER_CHANGE_SOLD_OUT(HttpStatus.BAD_REQUEST, "PLANNER_017", "품절 상품으로 변경할 수 없습니다."),
 
-    SALE_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "SALE_PRODUCT_001", "판매 상품을 찾을 수 없습니다.");
+    SALE_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "SALE_PRODUCT_001", "판매 상품을 찾을 수 없습니다."),
+
+    EXCHANGE_RATE_DATE_INVALID(HttpStatus.BAD_REQUEST, "EXCHANGE_001",
+        "조회 날짜는 YYYY-MM-DD 형식의 유효한 날짜여야 하며 미래 날짜는 조회할 수 없습니다."),
+
+    EXCHANGE_RATE_NOT_FOUND(HttpStatus.NOT_FOUND, "EXCHANGE_002", "해당 날짜에 고시된 환율이 없습니다."),
+
+    EXCHANGE_RATE_PROVIDER_ERROR(HttpStatus.BAD_GATEWAY, "EXCHANGE_003", "환율 제공기관에 연결할 수 없거나 응답이 올바르지 않습니다."),
+
+    EXCHANGE_RATE_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "EXCHANGE_004", "환율 조회 서비스가 설정되지 않았습니다.");
 
     private final HttpStatus status;
     private final String code;

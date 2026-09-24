@@ -35,7 +35,7 @@ public class SecurityConfig {
                     "/api/v1/auth/logout").permitAll();
                 auth.requestMatchers(HttpMethod.GET, "/api/v1/whisky-categories", "/api/v1/whiskies",
                     "/api/v1/whiskies/suggestions", "/api/v1/whiskies/{whiskyId}",
-                    "/api/v1/whiskies/{whiskyId}/related", "/api/v1/curations")
+                    "/api/v1/whiskies/{whiskyId}/related", "/api/v1/curations", "/api/v1/exchange-rates")
                     .permitAll();
                 auth.requestMatchers("/actuator/health", "/error").permitAll();
                 if (docsEnabled) {
