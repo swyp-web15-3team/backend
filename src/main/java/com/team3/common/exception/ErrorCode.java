@@ -9,14 +9,6 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode implements ErrorCodeDefinition {
     AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "AUTH_001", "인증이 필요합니다."),
 
-    COLLECTION_NAME_DUPLICATE(HttpStatus.CONFLICT, "COLLECTION_001", "이미 존재하는 관심 그룹 이름입니다."),
-
-    COLLECTION_NOT_FOUND(HttpStatus.NOT_FOUND, "COLLECTION_002", "관심 그룹을 찾을 수 없습니다."),
-
-    DEFAULT_COLLECTION_IMMUTABLE(HttpStatus.BAD_REQUEST, "COLLECTION_003", "기본 관심 그룹은 수정할 수 없습니다."),
-
-    COLLECTION_SAME_GROUP(HttpStatus.BAD_REQUEST, "COLLECTION_004", "같은 관심 그룹으로는 이동할 수 없습니다."),
-
     WHISKY_NOT_FOUND(HttpStatus.NOT_FOUND, "WHISKY_001", "위스키를 찾을 수 없습니다."),
 
     ALREADY_SIGNED_UP(HttpStatus.CONFLICT, "AUTH_002", "이미 가입이 완료된 사용자입니다."),
