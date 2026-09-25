@@ -19,7 +19,9 @@ public enum CollectionErrorCode implements ErrorCodeDefinition {
 
     COLLECTION_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "COLLECTION_005", "size는 1 이상 50 이하여야 합니다."),
 
-    COLLECTION_SAME_GROUP(HttpStatus.BAD_REQUEST, "COLLECTION_006", "같은 관심 그룹으로는 이동할 수 없습니다.");
+    COLLECTION_SAME_GROUP(HttpStatus.BAD_REQUEST, "COLLECTION_006", "같은 관심 그룹으로는 이동할 수 없습니다."),
+
+    COLLECTION_SAME_GROUP_COPY(HttpStatus.BAD_REQUEST, "COLLECTION_007", "같은 관심 그룹으로는 복사할 수 없습니다.");
 
     private final HttpStatus status;
     private final String code;
