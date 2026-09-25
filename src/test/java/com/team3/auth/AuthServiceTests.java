@@ -19,6 +19,8 @@ import com.team3.auth.jwt.JwtProperties;
 import com.team3.auth.token.RefreshTokenService;
 import com.team3.auth.token.RefreshToken;
 import com.team3.auth.token.RefreshTokenRepository;
+import com.team3.collection.Collection;
+import com.team3.collection.CollectionRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
@@ -68,6 +70,7 @@ class AuthServiceTests {
     private final RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
     private final UserRepository users = mock(UserRepository.class);
     private final UserAgreementRepository agreements = mock(UserAgreementRepository.class);
+    private final CollectionRepository collections = mock(CollectionRepository.class);
     private final RefreshTokenRepository.TokenOwner owner = () -> 1L;
     private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
     private final TransactionStatus transaction = mock(TransactionStatus.class);
@@ -251,6 +254,27 @@ class AuthServiceTests {
 
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isFalse();
         assertThatThrownBy(() -> service.signUp(7L, true, "tester")).isInstanceOf(AlreadySignedUpException.class);
+        ArgumentCaptor<Collection> created = ArgumentCaptor.forClass(Collection.class);
+        verify(collections, times(1)).save(created.capture());
+        assertThat(created.getValue().userId()).isEqualTo(7L);
+        assertThat(created.getValue().name()).isEqualTo("기본 관심 목록");
+        assertThat(created.getValue().isDefault()).isTrue();
+    }
+
+    @Test
+    void reusesExistingDefaultCollectionOnSignUp() {
+        User pending = new User(Provider.KAKAO, "123");
+        Collection existing = new Collection(7L, "다른 기본 목록", true);
+        when(users.findLockedById(7L)).thenReturn(Optional.of(pending));
+        when(collections.findByUserIdAndIsDefaultTrue(7L)).thenReturn(Optional.of(existing));
+
+        service.signUp(7L, false, "tester");
+
+        assertThat(existing.isDefault()).isTrue();
+        assertThat(existing.name()).isEqualTo("다른 기본 목록");
+        ArgumentCaptor<Collection> saved = ArgumentCaptor.forClass(Collection.class);
+        verify(collections).save(saved.capture());
+        assertThat(saved.getValue()).isSameAs(existing);
     }
 
     @Test
@@ -342,7 +366,7 @@ class AuthServiceTests {
         return new AuthService(new RefreshTokenService(repository, tokenClock, properties(SECRET, "backend")),
             new JwtProvider(config.jwtEncoder(config.jwtKey(properties(SECRET, "backend"))), tokenClock,
                 properties(SECRET, "backend")),
-            users, agreements, transactionManager, tokenClock);
+            users, agreements, collections, transactionManager, tokenClock);
     }
 
     private JwtProperties properties(String secret, String issuer) {

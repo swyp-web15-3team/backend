@@ -42,6 +42,10 @@ public class Collection {
     }
 
     public Collection(Long userId, String name) {
+        this(userId, name, false);
+    }
+
+    public Collection(Long userId, String name, boolean isDefault) {
         if (userId == null) {
             throw new IllegalArgumentException("사용자 ID는 필수입니다.");
         }
@@ -51,7 +55,7 @@ public class Collection {
         }
         this.userId = userId;
         this.name = normalizedName;
-        this.isDefault = false;
+        this.isDefault = isDefault;
     }
 
     public Long id() {

@@ -9,12 +9,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 
 public interface CollectionRepository extends JpaRepository<Collection, Long> {
+    Optional<Collection> findByUserIdAndIsDefaultTrue(Long userId);
+
     boolean existsByUserIdAndName(Long userId, String name);
 
     boolean existsByUserIdAndNameAndIdNot(Long userId, String name, Long id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Collection> findByIdAndUserId(Long id, Long userId);
+
+    boolean existsByIdAndUserId(Long id, Long userId);
 
     List<Collection> findAllByUserId(Long userId, Sort sort);
 }

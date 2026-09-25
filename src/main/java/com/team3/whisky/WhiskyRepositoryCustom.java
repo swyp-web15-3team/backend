@@ -9,6 +9,8 @@ public interface WhiskyRepositoryCustom {
 
     List<Whisky> findRelated(Long excludedWhiskyId, Long categoryId, Long originId, int limit);
 
+    Page<Whisky> findByCollectionId(Long collectionId, Pageable pageable);
+
     Page<Whisky> search(
         String keyword,
         Long categoryId,

@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +28,15 @@ import com.team3.user.User;
 import com.team3.user.enums.Provider;
 import com.team3.user.UserRepository;
 import com.team3.whisky.WhiskyRepository;
+import com.team3.whisky.Whisky;
+import com.team3.whisky.WhiskyCategory;
+import com.team3.whisky.WhiskyCategoryRepository;
+import com.team3.whisky.WhiskyLatestPrice;
+import com.team3.whisky.WhiskyOriginRepository;
+import com.team3.whisky.WhiskyRegionRepository;
+import com.team3.whisky.WhiskyService;
+import com.team3.whisky.PriceHistoryRepository;
+import com.team3.whisky.SaleProductRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,14 +47,18 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 @WebMvcTest(CollectionController.class)
-@Import({SecurityConfig.class, CollectionService.class})
+@Import({SecurityConfig.class, CollectionService.class, WhiskyService.class})
 class CollectionHttpTests {
 
     @Autowired
@@ -63,6 +77,21 @@ class CollectionHttpTests {
     private WhiskyRepository whiskies;
 
     @MockitoBean
+    private WhiskyCategoryRepository categories;
+
+    @MockitoBean
+    private WhiskyOriginRepository origins;
+
+    @MockitoBean
+    private WhiskyRegionRepository regions;
+
+    @MockitoBean
+    private PriceHistoryRepository prices;
+
+    @MockitoBean
+    private SaleProductRepository saleProducts;
+
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @MockitoBean
@@ -76,6 +105,7 @@ class CollectionHttpTests {
         Jwt jwt = Jwt.withTokenValue("access-token").header("alg", "HS256").subject("42")
             .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).build();
         when(jwtDecoder.decode("access-token")).thenReturn(jwt);
+        when(collections.existsByIdAndUserId(12L, 42L)).thenReturn(true);
     }
 
     @Test
@@ -203,7 +233,7 @@ class CollectionHttpTests {
 
     @Test
     void rejectsUpdatingDefaultCollection() throws Exception {
-        Collection collection = collection(12L, "기본", true);
+        Collection collection = collection(12L, "기본 관심 목록", true);
         when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
 
         mvc.perform(patch("/api/v1/collections/12").header("Authorization", "Bearer access-token")
@@ -239,7 +269,7 @@ class CollectionHttpTests {
 
     @Test
     void rejectsDeletingDefaultCollection() throws Exception {
-        Collection collection = collection(12L, "기본", true);
+        Collection collection = collection(12L, "기본 관심 목록", true);
         when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
 
         mvc.perform(delete("/api/v1/collections/12").header("Authorization", "Bearer access-token"))
@@ -357,7 +387,7 @@ class CollectionHttpTests {
 
     @Test
     void addsWhiskyToOwnedDefaultCollectionIdempotently() throws Exception {
-        Collection collection = collection(12L, "기본", true);
+        Collection collection = collection(12L, "기본 관심 목록", true);
         when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(collection));
         when(whiskies.countByIdIn(Set.of(101L))).thenReturn(1L);
         when(collectionWhiskies.existsByCollectionIdAndWhiskyId(12L, 101L)).thenReturn(false, true);
@@ -434,8 +464,129 @@ class CollectionHttpTests {
             .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void returnsOwnedCollectionWhiskiesWithCardsPricesAndPagination() throws Exception {
+        Whisky whisky = whiskyCard(101L, "Lagavulin 16");
+        Sort sort = Sort.by(Sort.Order.asc("name"), Sort.Order.asc("id"));
+        PageRequest request = PageRequest.of(1, 1, sort);
+        when(whiskies.findByCollectionId(12L, request))
+            .thenReturn(new PageImpl<>(List.of(whisky), request, 3));
+        when(prices.findLatestAvailablePrices(List.of(101L))).thenReturn(List.of(
+            new WhiskyLatestPrice(101L, new BigDecimal("190000"), "KRW", "KR", "비싼 매장", Instant.EPOCH, 2L),
+            new WhiskyLatestPrice(101L, new BigDecimal("189000"), "KRW", "KR", "저렴한 매장", Instant.EPOCH, 1L),
+            new WhiskyLatestPrice(101L, new BigDecimal("9800"), "JPY", "JP", "나리타 면세", Instant.EPOCH, 3L)));
+
+        mvc.perform(get("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .param("page", "1").param("size", "1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items.length()").value(1))
+            .andExpect(jsonPath("$.data.items[0].id").value(101))
+            .andExpect(jsonPath("$.data.items[0].name").value("Lagavulin 16"))
+            .andExpect(jsonPath("$.data.items[0].category.name").value("싱글 몰트"))
+            .andExpect(jsonPath("$.data.items[0].kr.amount").value(189000))
+            .andExpect(jsonPath("$.data.items[0].kr.retailerName").value("저렴한 매장"))
+            .andExpect(jsonPath("$.data.items[0].jp.amount").value(9800))
+            .andExpect(jsonPath("$.data.items[0].comparison").isEmpty())
+            .andExpect(jsonPath("$.data.page").value(1))
+            .andExpect(jsonPath("$.data.size").value(1))
+            .andExpect(jsonPath("$.data.totalElements").value(3))
+            .andExpect(jsonPath("$.data.totalPages").value(3));
+
+        verify(whiskies).findByCollectionId(12L, request);
+        verify(collections).existsByIdAndUserId(12L, 42L);
+        verify(collections, never()).findByIdAndUserId(12L, 42L);
+    }
+
+    @Test
+    void returnsEmptyCollectionWhiskiesWithAccurateTotals() throws Exception {
+        Sort sort = Sort.by(Sort.Order.asc("name"), Sort.Order.asc("id"));
+        PageRequest request = PageRequest.of(0, 20, sort);
+        when(whiskies.findByCollectionId(12L, request)).thenReturn(new PageImpl<>(List.of(), request, 0));
+
+        mvc.perform(get("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items").isEmpty())
+            .andExpect(jsonPath("$.data.page").value(0))
+            .andExpect(jsonPath("$.data.size").value(20))
+            .andExpect(jsonPath("$.data.totalElements").value(0))
+            .andExpect(jsonPath("$.data.totalPages").value(0));
+    }
+
+    @Test
+    void returnsEmptyItemsForAnOutOfRangeCollectionWhiskyPage() throws Exception {
+        Sort sort = Sort.by(Sort.Order.asc("name"), Sort.Order.asc("id"));
+        PageRequest request = PageRequest.of(2, 20, sort);
+        when(whiskies.findByCollectionId(12L, request)).thenReturn(new PageImpl<>(List.of(), request, 3));
+
+        mvc.perform(get("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token")
+            .param("page", "2"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items").isEmpty())
+            .andExpect(jsonPath("$.data.page").value(2))
+            .andExpect(jsonPath("$.data.size").value(20))
+            .andExpect(jsonPath("$.data.totalElements").value(3))
+            .andExpect(jsonPath("$.data.totalPages").value(1));
+    }
+
+    @Test
+    void rejectsInvalidCollectionWhiskyPageParameters() throws Exception {
+        expectInvalidCollectionRequest(collectionWhiskiesRequest("0"));
+        expectInvalidCollectionRequest(collectionWhiskiesRequest("-1"));
+        expectInvalidCollectionRequest(collectionWhiskiesRequest("12").param("page", "-1"));
+        expectInvalidCollectionRequest(collectionWhiskiesRequest("12").param("size", "0"));
+        expectInvalidCollectionRequest(collectionWhiskiesRequest("12").param("size", "51"));
+
+        org.mockito.Mockito.verifyNoInteractions(collections, collectionWhiskies, whiskies);
+    }
+
+    @Test
+    void doesNotQueryWhiskiesForAnUnownedCollection() throws Exception {
+        when(collections.existsByIdAndUserId(12L, 42L)).thenReturn(false);
+
+        mvc.perform(get("/api/v1/collections/12/whiskies").header("Authorization", "Bearer access-token"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("COLLECTION_002"));
+
+        verify(whiskies, never()).findByCollectionId(any(), any());
+    }
+
+    @Test
+    void mapsMalformedCollectionWhiskyParametersToCollectionErrorsWithoutRepositoryQueries() throws Exception {
+        for (String collectionId : List.of("invalid", "9223372036854775808")) {
+            expectInvalidCollectionRequest(collectionWhiskiesRequest(collectionId));
+        }
+        for (String page : List.of("invalid", "2147483648")) {
+            expectInvalidCollectionRequest(collectionWhiskiesRequest("12").param("page", page));
+        }
+        for (String size : List.of("invalid", "2147483648")) {
+            expectInvalidCollectionRequest(collectionWhiskiesRequest("12").param("size", size));
+        }
+
+        org.mockito.Mockito.verifyNoInteractions(collections, collectionWhiskies, whiskies);
+    }
+
+    @Test
+    void rejectsInvalidPaginationBeforeCheckingUnownedCollection() throws Exception {
+        when(collections.existsByIdAndUserId(12L, 42L)).thenReturn(false);
+
+        expectInvalidCollectionRequest(collectionWhiskiesRequest("12").param("page", "-1"));
+        expectInvalidCollectionRequest(collectionWhiskiesRequest("12").param("size", "0"));
+
+        org.mockito.Mockito.verifyNoInteractions(collections, collectionWhiskies, whiskies);
+    }
+
     private Collection collection(Long id, String name) {
         return collection(id, name, false);
+    }
+
+    private void expectInvalidCollectionRequest(RequestBuilder request) throws Exception {
+        mvc.perform(request)
+            .andExpect(status().isBadRequest());
+    }
+
+    private MockHttpServletRequestBuilder collectionWhiskiesRequest(String collectionId) {
+        return get("/api/v1/collections/" + collectionId + "/whiskies")
+            .header("Authorization", "Bearer access-token");
     }
 
     private Collection collection(Long id, String name, boolean isDefault) {
@@ -444,5 +595,15 @@ class CollectionHttpTests {
         when(collection.name()).thenReturn(name);
         when(collection.isDefault()).thenReturn(isDefault);
         return collection;
+    }
+
+    private Whisky whiskyCard(Long id, String name) {
+        WhiskyCategory category = mock(WhiskyCategory.class);
+        when(category.name()).thenReturn("싱글 몰트");
+        Whisky whisky = mock(Whisky.class);
+        when(whisky.id()).thenReturn(id);
+        when(whisky.name()).thenReturn(name);
+        when(whisky.category()).thenReturn(category);
+        return whisky;
     }
 }

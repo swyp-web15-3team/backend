@@ -94,13 +94,13 @@ public class WhiskyService {
             saleCountry,
             isDutyFree,
             PageRequest.of(pageNumber, pageSize, listSort(sort)));
-        Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
-        Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
-        collectLowestPrices(found.getContent(), lowestKr, lowestJp);
-        List<WhiskyItem> content = found.getContent().stream()
-            .map(whisky -> WhiskyItem.from(whisky, lowestKr.get(whisky.id()), lowestJp.get(whisky.id())))
-            .toList();
-        return new WhiskyListResponse(content, pageNumber, pageSize, found.getTotalElements(), found.getTotalPages());
+        return listResponse(found, pageNumber, pageSize);
+    }
+
+    public WhiskyListResponse getCollectionWhiskies(Long collectionId, int page, int size) {
+        Page<Whisky> found = whiskies.findByCollectionId(
+            collectionId, PageRequest.of(page, size, Sort.by(Order.asc("name"), Order.asc("id"))));
+        return listResponse(found, page, size);
     }
 
     public WhiskyDetailResponse getWhisky(Long whiskyId) {
@@ -237,6 +237,16 @@ public class WhiskyService {
                 lowestJp.merge(price.whiskyId(), price, WhiskyService::lowerPrice);
             }
         }
+    }
+
+    private WhiskyListResponse listResponse(Page<Whisky> found, int pageNumber, int pageSize) {
+        Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
+        Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
+        collectLowestPrices(found.getContent(), lowestKr, lowestJp);
+        List<WhiskyItem> content = found.getContent().stream()
+            .map(whisky -> WhiskyItem.from(whisky, lowestKr.get(whisky.id()), lowestJp.get(whisky.id())))
+            .toList();
+        return new WhiskyListResponse(content, pageNumber, pageSize, found.getTotalElements(), found.getTotalPages());
     }
 
     private static WhiskyLatestPrice lowerPrice(WhiskyLatestPrice left, WhiskyLatestPrice right) {

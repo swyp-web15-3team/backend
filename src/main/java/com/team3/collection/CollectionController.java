@@ -1,6 +1,7 @@
 package com.team3.collection;
 
 import com.team3.collection.dto.CollectionResponse;
+import com.team3.collection.dto.CollectionWhiskiesResponse;
 import com.team3.collection.dto.CollectionsResponse;
 import com.team3.collection.dto.CreateCollectionRequest;
 import com.team3.collection.dto.AddWhiskyRequest;
@@ -11,6 +12,10 @@ import com.team3.common.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
@@ -24,6 +29,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -52,6 +58,17 @@ public class CollectionController {
         @AuthenticationPrincipal Jwt jwt,
         @SortDefault(sort = {"createdAt", "id"}, direction = Sort.Direction.DESC) Sort sort) {
         return ApiResponse.of(collections.getCollections(Long.valueOf(jwt.getSubject()), sort));
+    }
+
+    @GetMapping("/{collectionId}/whiskies")
+    public ApiResponse<CollectionWhiskiesResponse> getCollectionWhiskies(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable @Positive Long collectionId,
+        @RequestParam(defaultValue = "0") @PositiveOrZero int page,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size) {
+        return ApiResponse.of(
+            collections.getCollectionWhiskies(
+                Long.valueOf(jwt.getSubject()), collectionId, page, size));
     }
 
     @PatchMapping("/{collectionId}")

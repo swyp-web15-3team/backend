@@ -5,6 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 import com.team3.collection.dto.CollectionResponse;
+import com.team3.collection.dto.CollectionWhiskiesResponse;
 import com.team3.collection.dto.CollectionsResponse;
 import com.team3.collection.exception.CollectionNotFoundException;
 import com.team3.collection.exception.DefaultCollectionImmutableException;
@@ -12,6 +13,8 @@ import com.team3.collection.exception.DuplicateCollectionNameException;
 import com.team3.collection.exception.SameCollectionMoveException;
 import com.team3.collection.exception.WhiskyNotFoundException;
 import com.team3.whisky.WhiskyRepository;
+import com.team3.whisky.WhiskyService;
+import com.team3.whisky.dto.WhiskyListResponse;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,14 +29,17 @@ public class CollectionService {
     private final CollectionRepository collections;
     private final CollectionWhiskyRepository collectionWhiskies;
     private final WhiskyRepository whiskies;
+    private final WhiskyService whiskyService;
 
     public CollectionService(
         CollectionRepository collections,
         CollectionWhiskyRepository collectionWhiskies,
-        WhiskyRepository whiskies) {
+        WhiskyRepository whiskies,
+        WhiskyService whiskyService) {
         this.collections = collections;
         this.collectionWhiskies = collectionWhiskies;
         this.whiskies = whiskies;
+        this.whiskyService = whiskyService;
     }
 
     public CollectionResponse createCollection(Long userId, String name) {
@@ -58,6 +64,17 @@ public class CollectionService {
             .map(CollectionResponse::from)
             .toList();
         return new CollectionsResponse(responses);
+    }
+
+    @Transactional(readOnly = true)
+    public CollectionWhiskiesResponse getCollectionWhiskies(
+        Long userId,
+        Long collectionId,
+        int page,
+        int size) {
+        assertOwnedCollection(userId, collectionId);
+        WhiskyListResponse response = whiskyService.getCollectionWhiskies(collectionId, page, size);
+        return CollectionWhiskiesResponse.from(response);
     }
 
     public CollectionResponse updateCollection(Long userId, Long collectionId, String name) {
@@ -150,6 +167,12 @@ public class CollectionService {
             .orElseThrow(CollectionNotFoundException::new);
     }
 
+    private void assertOwnedCollection(Long userId, Long collectionId) {
+        if (!collections.existsByIdAndUserId(collectionId, userId)) {
+            throw new CollectionNotFoundException();
+        }
+    }
+
     private void assertWhiskiesExist(Set<Long> whiskyIds) {
         if (whiskies.countByIdIn(whiskyIds) != whiskyIds.size()) {
             throw new WhiskyNotFoundException();
@@ -171,4 +194,5 @@ public class CollectionService {
     private DuplicateCollectionNameException nameConflict() {
         return new DuplicateCollectionNameException();
     }
+
 }
