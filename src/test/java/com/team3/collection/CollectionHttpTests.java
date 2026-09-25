@@ -420,6 +420,46 @@ class CollectionHttpTests {
     }
 
     @Test
+    void copiesOwnedWhiskiesWithoutRemovingTheSourceMembership() throws Exception {
+        Collection source = collection(12L, "출발");
+        Collection target = collection(7L, "도착");
+        when(collections.findByIdAndUserId(12L, 42L)).thenReturn(Optional.of(source));
+        when(collections.findByIdAndUserId(7L, 42L)).thenReturn(Optional.of(target));
+        when(whiskies.countByIdIn(Set.of(101L, 102L, 103L))).thenReturn(3L);
+        CollectionWhisky alreadyThere = mock(CollectionWhisky.class);
+        CollectionWhisky toCopy = mock(CollectionWhisky.class);
+        when(alreadyThere.whiskyId()).thenReturn(101L);
+        when(toCopy.whiskyId()).thenReturn(102L);
+        when(collectionWhiskies.findAllByCollectionIdAndWhiskyIdIn(12L, Set.of(101L, 102L, 103L)))
+            .thenReturn(List.of(alreadyThere, toCopy));
+        when(collectionWhiskies.existsByCollectionIdAndWhiskyId(7L, 101L)).thenReturn(true);
+        when(collectionWhiskies.existsByCollectionIdAndWhiskyId(7L, 102L)).thenReturn(false);
+
+        mvc.perform(post("/api/v1/collections/12/whiskies/copy").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"targetCollectionId\":7,\"whiskyIds\":[101,102,103]}"))
+            .andExpect(status().isNoContent()).andExpect(content().string(""));
+
+        ArgumentCaptor<CollectionWhisky> saved = ArgumentCaptor.forClass(CollectionWhisky.class);
+        verify(collectionWhiskies).save(saved.capture());
+        assertThat(saved.getValue().whiskyId()).isEqualTo(102L);
+        verify(collectionWhiskies, never()).deleteAllInBatch(any());
+    }
+
+    @Test
+    void rejectsCopyIntoTheSameCollection() throws Exception {
+        mvc.perform(post("/api/v1/collections/12/whiskies/copy").header("Authorization", "Bearer access-token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"targetCollectionId\":12,\"whiskyIds\":[101]}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("COLLECTION_007"))
+            .andExpect(jsonPath("$.detail").value("같은 관심 그룹으로는 복사할 수 없습니다."));
+
+        verify(collections, never()).findByIdAndUserId(any(), any());
+        verify(collectionWhiskies, never()).save(any());
+    }
+
+    @Test
     void rejectsUnauthenticatedAndUnownedWhiskyChanges() throws Exception {
         mvc.perform(post("/api/v1/collections/12/whiskies").contentType(MediaType.APPLICATION_JSON)
             .content("{\"whiskyId\":101}")).andExpect(status().isUnauthorized());

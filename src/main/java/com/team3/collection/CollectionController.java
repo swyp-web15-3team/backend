@@ -5,6 +5,7 @@ import com.team3.collection.dto.CollectionWhiskiesResponse;
 import com.team3.collection.dto.CollectionsResponse;
 import com.team3.collection.dto.CreateCollectionRequest;
 import com.team3.collection.dto.AddWhiskyRequest;
+import com.team3.collection.dto.CopyCollectionWhiskiesRequest;
 import com.team3.collection.dto.DeleteWhiskiesRequest;
 import com.team3.collection.dto.MoveCollectionWhiskiesRequest;
 import com.team3.collection.dto.UpdateCollectionRequest;
@@ -104,6 +105,19 @@ public class CollectionController {
         @PathVariable Long collectionId,
         @Valid @RequestBody MoveCollectionWhiskiesRequest request) {
         collections.moveWhiskies(
+            Long.valueOf(jwt.getSubject()),
+            collectionId,
+            request.targetCollectionId(),
+            request.whiskyIds());
+    }
+
+    @PostMapping("/{collectionId}/whiskies/copy")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void copyWhiskies(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable Long collectionId,
+        @Valid @RequestBody CopyCollectionWhiskiesRequest request) {
+        collections.copyWhiskies(
             Long.valueOf(jwt.getSubject()),
             collectionId,
             request.targetCollectionId(),
