@@ -10,6 +10,7 @@ import com.team3.collection.dto.CollectionsResponse;
 import com.team3.collection.exception.CollectionNotFoundException;
 import com.team3.collection.exception.DefaultCollectionImmutableException;
 import com.team3.collection.exception.DuplicateCollectionNameException;
+import com.team3.collection.exception.SameCollectionCopyException;
 import com.team3.collection.exception.SameCollectionMoveException;
 import com.team3.collection.exception.WhiskyNotFoundException;
 import com.team3.whisky.WhiskyRepository;
@@ -146,7 +147,7 @@ public class CollectionService {
 
     public void copyWhiskies(Long userId, Long collectionId, Long targetCollectionId, List<Long> whiskyIds) {
         if (collectionId.equals(targetCollectionId)) {
-            throw new SameCollectionMoveException();
+            throw new SameCollectionCopyException();
         }
         findOwnedCollection(userId, collectionId);
         findOwnedCollection(userId, targetCollectionId);
