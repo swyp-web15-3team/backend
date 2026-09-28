@@ -117,7 +117,7 @@ public class AuthService {
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public void withdraw(Long userId, KakaoClient kakao) {
+    public void withdraw(Long userId, String reason, KakaoClient kakao) {
         Instant startedAt = clock.instant();
         User user = users.findById(userId)
             .orElseThrow(UserNotFoundException::new);
@@ -126,14 +126,14 @@ public class AuthService {
         }
         String providerId = user.providerId();
         kakao.unlink(providerId);
-        withdrawalTransaction.executeWithoutResult(status -> finalizeWithdrawal(userId, startedAt));
+        withdrawalTransaction.executeWithoutResult(status -> finalizeWithdrawal(userId, startedAt, reason));
     }
 
-    private void finalizeWithdrawal(Long userId, Instant startedAt) {
+    private void finalizeWithdrawal(Long userId, Instant startedAt, String reason) {
         User user = users.findLockedById(userId)
             .orElseThrow(UserNotFoundException::new);
         if (!user.isDeleted()) {
-            user.delete(startedAt);
+            user.delete(startedAt, reason);
             refreshTokens.revokeAll(userId);
         }
     }

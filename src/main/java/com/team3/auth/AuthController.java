@@ -6,6 +6,7 @@ import com.team3.auth.dto.LogoutRequest;
 import com.team3.auth.dto.RefreshRequest;
 import com.team3.auth.dto.SignUpRequest;
 import com.team3.auth.dto.TokenResponse;
+import com.team3.auth.dto.WithdrawalRequest;
 import com.team3.user.enums.Provider;
 import com.team3.common.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -71,7 +72,14 @@ public class AuthController {
     @SecurityRequirement(name = "bearerAuth")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void withdraw(@AuthenticationPrincipal Jwt jwt) {
-        tokens.withdraw(userId(jwt), kakaoClient());
+        tokens.withdraw(userId(jwt), null, kakaoClient());
+    }
+
+    @PostMapping("/withdrawal")
+    @SecurityRequirement(name = "bearerAuth")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdrawWithReason(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody WithdrawalRequest request) {
+        tokens.withdraw(userId(jwt), request.reason(), kakaoClient());
     }
 
     private long userId(Jwt jwt) {

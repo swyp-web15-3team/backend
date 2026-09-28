@@ -215,11 +215,48 @@ class KakaoHttpTests {
         when(users.findLockedById(1L)).thenReturn(Optional.of(user));
         String accessToken = tokens.issue(1L, null).accessToken();
 
-        mvc.perform(delete("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken))
+        mvc.perform(post("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"No longer needed\"}"))
+            .andExpect(status().isNoContent());
+        mvc.perform(post("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Different reason\"}"))
             .andExpect(status().isNoContent());
         mvc.perform(delete("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken))
             .andExpect(status().isNoContent());
         mvc.perform(delete("/api/v1/auth/withdrawal")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/withdrawal").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"reason\":\"No longer needed\"}")).andExpect(status().isUnauthorized());
+        assertThat(user.withdrawalReason()).isEqualTo("No longer needed");
+        verify(kakao).unlink("123");
+    }
+
+    @Test
+    void rejectsMissingBlankAndOversizedWithdrawalReason() throws Exception {
+        when(users.findLockedById(1L)).thenReturn(Optional.of(new User(Provider.KAKAO, "123")));
+        String accessToken = tokens.issue(1L, null).accessToken();
+        for (String body : new String[]{"{}", "{\"reason\":null}", "{\"reason\":\" \"}",
+                "{\"reason\":\"" + "a".repeat(501) + "\"}"}) {
+            mvc.perform(post("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("reason"))
+                .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist());
+        }
+        mvc.perform(post("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isBadRequest());
+        verifyNoInteractions(kakao);
+    }
+
+    @Test
+    void acceptsBodylessWithdrawalForExistingClients() throws Exception {
+        User user = new User(Provider.KAKAO, "123");
+        when(users.findById(1L)).thenReturn(Optional.of(user));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(user));
+        String accessToken = tokens.issue(1L, null).accessToken();
+
+        mvc.perform(delete("/api/v1/auth/withdrawal").header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isNoContent());
+        assertThat(user.isDeleted()).isTrue();
+        assertThat(user.withdrawalReason()).isNull();
         verify(kakao).unlink("123");
     }
 }
