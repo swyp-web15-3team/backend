@@ -90,7 +90,9 @@ class SignUpHttpTests {
     void activatesPendingUserAndRecordsEveryAgreement() throws Exception {
         User user = new User(Provider.KAKAO, "123");
         when(users.findLockedById(1L)).thenReturn(Optional.of(user));
-        mvc.perform(signUp(BODY)).andExpect(status().isNoContent()).andExpect(content().string(""));
+        mvc.perform(signUp(BODY)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.accessToken").isString())
+            .andExpect(jsonPath("$.data.refreshToken").isString());
         assertThat(user.isPending()).isFalse();
         assertThat(user.nickname()).isEqualTo("tester");
         ArgumentCaptor<Collection> created = ArgumentCaptor.forClass(Collection.class);

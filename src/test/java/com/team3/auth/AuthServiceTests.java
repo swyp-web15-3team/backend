@@ -243,8 +243,13 @@ class AuthServiceTests {
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isTrue();
 
         when(users.findLockedById(7L)).thenReturn(Optional.of(pending));
-        service.signUp(7L, true, "tester");
+        AuthService.TokenPair pair = service.signUp(7L, true, "tester");
         assertThat(pending.isPending()).isFalse();
+        assertThat(decoder.decode(pair.accessToken()).getSubject()).isEqualTo("7");
+        assertThat(pair.refreshToken()).matches("[A-Za-z0-9_-]{43}");
+        ArgumentCaptor<RefreshToken> issued = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(repository).save(issued.capture());
+        assertThat(issued.getValue().userId()).isEqualTo(7L);
 
         ArgumentCaptor<List<UserAgreement>> saved = agreementsCaptor();
         verify(agreements).saveAll(saved.capture());
@@ -254,6 +259,7 @@ class AuthServiceTests {
 
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isFalse();
         assertThatThrownBy(() -> service.signUp(7L, true, "tester")).isInstanceOf(AlreadySignedUpException.class);
+        verify(repository, times(1)).save(any(RefreshToken.class));
         ArgumentCaptor<Collection> created = ArgumentCaptor.forClass(Collection.class);
         verify(collections, times(1)).save(created.capture());
         assertThat(created.getValue().userId()).isEqualTo(7L);

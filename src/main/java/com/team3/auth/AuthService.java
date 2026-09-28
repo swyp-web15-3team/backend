@@ -71,7 +71,7 @@ public class AuthService {
         }
     }
 
-    public void signUp(Long userId, boolean marketingAgreed, String nickname) {
+    public TokenPair signUp(Long userId, boolean marketingAgreed, String nickname) {
         User user = users.findLockedById(userId)
             .orElseThrow(UserNotFoundException::new);
         checkNotDeleted(user);
@@ -88,6 +88,7 @@ public class AuthService {
             new UserAgreement(userId, AgreementType.TERMS_OF_SERVICE, true),
             new UserAgreement(userId, AgreementType.PRIVACY_POLICY, true),
             new UserAgreement(userId, AgreementType.MARKETING, marketingAgreed)));
+        return tokens(userId, refreshTokens.issue(userId));
     }
 
     public TokenPair issue(Long userId, String profileImageUrl) {
