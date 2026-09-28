@@ -9,6 +9,7 @@ import com.team3.auth.dto.TokenResponse;
 import com.team3.auth.dto.WithdrawalRequest;
 import com.team3.user.enums.Provider;
 import com.team3.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 import org.springframework.http.HttpStatus;
@@ -69,8 +70,10 @@ public class AuthController {
     }
 
     @DeleteMapping("/withdrawal")
+    @Operation(deprecated = true, description = "Use POST /api/v1/auth/withdrawal with a withdrawal reason instead.")
     @SecurityRequirement(name = "bearerAuth")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Deprecated
     public void withdraw(@AuthenticationPrincipal Jwt jwt) {
         tokens.withdraw(userId(jwt), null, kakaoClient());
     }
