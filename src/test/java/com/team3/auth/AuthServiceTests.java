@@ -5,7 +5,7 @@ import com.team3.user.exception.DeletedUserException;
 import com.team3.user.exception.UserNotFoundException;
 import com.team3.user.enums.UserErrorCode;
 import com.team3.auth.exception.InvalidUserIdException;
-import com.team3.common.exception.ErrorCode;
+import com.team3.auth.enums.AuthErrorCode;
 import com.team3.user.enums.AgreementType;
 import com.team3.user.User;
 import com.team3.user.enums.Provider;
@@ -243,8 +243,13 @@ class AuthServiceTests {
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isTrue();
 
         when(users.findLockedById(7L)).thenReturn(Optional.of(pending));
-        service.signUp(7L, true, "tester");
+        AuthService.TokenPair pair = service.signUp(7L, true, "tester");
         assertThat(pending.isPending()).isFalse();
+        assertThat(decoder.decode(pair.accessToken()).getSubject()).isEqualTo("7");
+        assertThat(pair.refreshToken()).matches("[A-Za-z0-9_-]{43}");
+        ArgumentCaptor<RefreshToken> issued = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(repository).save(issued.capture());
+        assertThat(issued.getValue().userId()).isEqualTo(7L);
 
         ArgumentCaptor<List<UserAgreement>> saved = agreementsCaptor();
         verify(agreements).saveAll(saved.capture());
@@ -254,6 +259,7 @@ class AuthServiceTests {
 
         assertThat(service.findOrCreateUser(Provider.KAKAO, "external:abc-123").isNewUser()).isFalse();
         assertThatThrownBy(() -> service.signUp(7L, true, "tester")).isInstanceOf(AlreadySignedUpException.class);
+        verify(repository, times(1)).save(any(RefreshToken.class));
         ArgumentCaptor<Collection> created = ArgumentCaptor.forClass(Collection.class);
         verify(collections, times(1)).save(created.capture());
         assertThat(created.getValue().userId()).isEqualTo(7L);
@@ -286,12 +292,12 @@ class AuthServiceTests {
             () -> service.signUp(1L, false, "tester"),
             () -> service.issue(1L, null),
             () -> service.refresh("a".repeat(43)),
-            () -> service.withdraw(1L, kakao))) {
+            () -> service.withdraw(1L, "No longer needed", kakao))) {
             assertUserNotFound(action);
         }
         verifyNoInteractions(kakao);
         when(users.findById(1L)).thenReturn(Optional.of(new User(Provider.KAKAO, "123")));
-        assertUserNotFound(() -> service.withdraw(1L, kakao));
+        assertUserNotFound(() -> service.withdraw(1L, "No longer needed", kakao));
         verify(transactionManager).rollback(transaction);
     }
 
@@ -325,10 +331,11 @@ class AuthServiceTests {
         when(users.findById(1L)).thenReturn(Optional.of(user));
         when(users.findLockedById(1L)).thenReturn(Optional.of(user));
 
-        service(nonUtcClock).withdraw(1L, kakao);
-        service(nonUtcClock).withdraw(1L, kakao);
+        service(nonUtcClock).withdraw(1L, "No longer needed", kakao);
+        service(nonUtcClock).withdraw(1L, "Different reason", kakao);
 
         assertThat(user.deletedAt()).isEqualTo(nonUtcClock.instant());
+        assertThat(user.withdrawalReason()).isEqualTo("No longer needed");
         verify(repository, times(1)).deleteByUserId(1L);
         verify(transactionManager, times(1)).commit(transaction);
         org.mockito.InOrder order = inOrder(kakao, transactionManager);
@@ -341,9 +348,11 @@ class AuthServiceTests {
         KakaoClient kakao = mock(KakaoClient.class);
         doThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Kakao unlink failed.")).when(kakao).unlink("123");
 
-        assertThatThrownBy(() -> service.withdraw(1L, kakao)).isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> service.withdraw(1L, "No longer needed", kakao))
+            .isInstanceOf(ResponseStatusException.class);
 
         verifyNoInteractions(transactionManager);
+        assertThat(users.findById(1L).orElseThrow().withdrawalReason()).isNull();
     }
 
     @Test
@@ -352,7 +361,7 @@ class AuthServiceTests {
         DataIntegrityViolationException failure = new DataIntegrityViolationException("database unavailable");
         doThrow(failure).when(repository).deleteByUserId(1L);
 
-        assertThatThrownBy(() -> service.withdraw(1L, kakao)).isSameAs(failure);
+        assertThatThrownBy(() -> service.withdraw(1L, "No longer needed", kakao)).isSameAs(failure);
 
         verify(transactionManager).rollback(transaction);
     }
@@ -380,7 +389,7 @@ class AuthServiceTests {
 
     private void assertInvalidUserId(Runnable action) {
         assertThatThrownBy(action::run).isInstanceOfSatisfying(InvalidUserIdException.class, ex -> {
-            assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INVALID_USER_ID);
+            assertThat(ex.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_USER_ID);
             assertThat(ex.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
             assertThat(ex.getErrorCode().getCode()).isEqualTo("AUTH_004");
         });

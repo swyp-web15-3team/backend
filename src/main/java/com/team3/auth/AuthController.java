@@ -4,10 +4,12 @@ import com.team3.auth.dto.KakaoLoginRequest;
 import com.team3.auth.dto.KakaoLoginResponse;
 import com.team3.auth.dto.LogoutRequest;
 import com.team3.auth.dto.RefreshRequest;
-import com.team3.auth.dto.RefreshResponse;
 import com.team3.auth.dto.SignUpRequest;
+import com.team3.auth.dto.TokenResponse;
+import com.team3.auth.dto.WithdrawalRequest;
 import com.team3.user.enums.Provider;
 import com.team3.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 import org.springframework.http.HttpStatus;
@@ -37,9 +39,9 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ApiResponse<RefreshResponse> refresh(@Valid @RequestBody RefreshRequest request) {
+    public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         AuthService.TokenPair pair = tokens.refresh(request.refreshToken());
-        return ApiResponse.of(new RefreshResponse(pair.accessToken(), pair.refreshToken()));
+        return ApiResponse.of(new TokenResponse(pair.accessToken(), pair.refreshToken()));
     }
 
     @PostMapping("/logout")
@@ -61,16 +63,26 @@ public class AuthController {
 
     @PostMapping("/sign-up")
     @SecurityRequirement(name = "bearerAuth")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void signUp(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody SignUpRequest request) {
-        tokens.signUp(userId(jwt), request.marketingAgreed(), request.nickname());
+    public ApiResponse<TokenResponse> signUp(@AuthenticationPrincipal Jwt jwt,
+        @Valid @RequestBody SignUpRequest request) {
+        AuthService.TokenPair pair = tokens.signUp(userId(jwt), request.marketingAgreed(), request.nickname());
+        return ApiResponse.of(new TokenResponse(pair.accessToken(), pair.refreshToken()));
     }
 
     @DeleteMapping("/withdrawal")
+    @Operation(deprecated = true, description = "Use POST /api/v1/auth/withdrawal with a withdrawal reason instead.")
     @SecurityRequirement(name = "bearerAuth")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Deprecated
     public void withdraw(@AuthenticationPrincipal Jwt jwt) {
-        tokens.withdraw(userId(jwt), kakaoClient());
+        tokens.withdraw(userId(jwt), null, kakaoClient());
+    }
+
+    @PostMapping("/withdrawal")
+    @SecurityRequirement(name = "bearerAuth")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdrawWithReason(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody WithdrawalRequest request) {
+        tokens.withdraw(userId(jwt), request.reason(), kakaoClient());
     }
 
     private long userId(Jwt jwt) {

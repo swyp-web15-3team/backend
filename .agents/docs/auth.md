@@ -1,7 +1,7 @@
 # Token authentication
 
-- Successful JSON responses use `ApiResponse<T>` (`{"data": ...}`). Login and refresh return 200; logout uses `@ResponseStatus(NO_CONTENT)` with no body. Errors retain the unwrapped ProblemDetail format.
-- Login and refresh token fields are nested under `data`; clients must read `data.accessToken`, `data.refreshToken`, and (login only) `data.isNewUser`. Clients derive access-token expiry from the JWT `exp` claim.
+- Successful JSON responses use `ApiResponse<T>` (`{"data": ...}`). Login, sign-up, and refresh return 200; logout uses `@ResponseStatus(NO_CONTENT)` with no body. Errors retain the unwrapped ProblemDetail format.
+- Login, sign-up, and refresh token fields are nested under `data`; clients must read `data.accessToken`, `data.refreshToken`, and (login only) `data.isNewUser`. Clients derive access-token expiry from the JWT `exp` claim.
 - Spring Security supplies default cache-prevention headers including `no-store` and the common `Referrer-Policy: no-referrer` header.
 - `POST /api/v1/auth/kakao` requires query parameter `redirectUri` and accepts JSON `{"code":"..."}` from the Next.js server, verifies the Kakao user, resolves an internal Long user ID, and returns `accessToken`, `refreshToken`, and `isNewUser`. `isNewUser` is true only when this request creates the user; existing users and concurrent creation conflict recovery return false. Code must be nonblank and at most 2048 characters.
 - Next.js owns OAuth initiation, browser-bound single-use expiring `state` validation, denial handling, and token cookie setting. Exchange a code only after validating state; the backend creates no HTTP session or cookies.
@@ -18,6 +18,7 @@
   Only SHA-256 hashes are stored, using JPA. Flyway SQL creates the table.
 - `POST /auth/logout` accepts the same JSON and returns 204, revoking that refresh token.
   Existing access tokens remain valid until expiry. Each issuance creates a separate session.
+- `POST /api/v1/auth/sign-up` requires a bearer access token and valid sign-up details; after activating the pending user it returns a new access token and refresh token in `data`. A completed sign-up cannot be repeated.
 - Tokens are sent in JSON, not cookies; use HTTPS. Cookie-based OAuth/token transport will need CSRF protection.
 - Set a random, Base64-encoded `JWT_SECRET` of at least 32 bytes; use the same key on all app instances.
 - `JwtProperties` and `KakaoProperties` bind `auth.jwt` and `auth.kakao` via `@ConfigurationProperties`, registered in `BackendApplication`. JWT lifetimes are validated when binding; key validation remains in `JwtConfig`, and enabled Kakao client validation remains in `KakaoClient`.

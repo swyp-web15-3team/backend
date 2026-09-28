@@ -194,7 +194,9 @@ class TokenHttpTests {
             .contentType(MediaType.APPLICATION_JSON)
             .content(
                 "{\"ageOver14Agreed\":true,\"termsOfServiceAgreed\":true,\"privacyPolicyAgreed\":true,\"nickname\":\"tester\"}"))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.accessToken").isString())
+            .andExpect(jsonPath("$.data.refreshToken").isString());
         mvc.perform(get("/api/v1/test/me").header(HttpHeaders.AUTHORIZATION, bearer))
             .andExpect(status().isOk()).andExpect(content().string("1"));
 

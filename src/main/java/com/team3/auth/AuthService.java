@@ -71,7 +71,7 @@ public class AuthService {
         }
     }
 
-    public void signUp(Long userId, boolean marketingAgreed, String nickname) {
+    public TokenPair signUp(Long userId, boolean marketingAgreed, String nickname) {
         User user = users.findLockedById(userId)
             .orElseThrow(UserNotFoundException::new);
         checkNotDeleted(user);
@@ -88,6 +88,7 @@ public class AuthService {
             new UserAgreement(userId, AgreementType.TERMS_OF_SERVICE, true),
             new UserAgreement(userId, AgreementType.PRIVACY_POLICY, true),
             new UserAgreement(userId, AgreementType.MARKETING, marketingAgreed)));
+        return tokens(userId, refreshTokens.issue(userId));
     }
 
     public TokenPair issue(Long userId, String profileImageUrl) {
@@ -116,7 +117,7 @@ public class AuthService {
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public void withdraw(Long userId, KakaoClient kakao) {
+    public void withdraw(Long userId, String reason, KakaoClient kakao) {
         Instant startedAt = clock.instant();
         User user = users.findById(userId)
             .orElseThrow(UserNotFoundException::new);
@@ -125,14 +126,14 @@ public class AuthService {
         }
         String providerId = user.providerId();
         kakao.unlink(providerId);
-        withdrawalTransaction.executeWithoutResult(status -> finalizeWithdrawal(userId, startedAt));
+        withdrawalTransaction.executeWithoutResult(status -> finalizeWithdrawal(userId, startedAt, reason));
     }
 
-    private void finalizeWithdrawal(Long userId, Instant startedAt) {
+    private void finalizeWithdrawal(Long userId, Instant startedAt, String reason) {
         User user = users.findLockedById(userId)
             .orElseThrow(UserNotFoundException::new);
         if (!user.isDeleted()) {
-            user.delete(startedAt);
+            user.delete(startedAt, reason);
             refreshTokens.revokeAll(userId);
         }
     }

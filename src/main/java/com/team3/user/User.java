@@ -38,6 +38,9 @@ public class User {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    @Column(name = "withdrawal_reason", length = 500)
+    private String withdrawalReason;
+
     @Column(length = 30)
     private String nickname;
 
@@ -80,6 +83,10 @@ public class User {
         return deletedAt;
     }
 
+    public String withdrawalReason() {
+        return withdrawalReason;
+    }
+
     public String nickname() {
         return nickname;
     }
@@ -97,8 +104,13 @@ public class User {
     }
 
     public void delete(Instant deletedAt) {
+        delete(deletedAt, null);
+    }
+
+    public void delete(Instant deletedAt, String reason) {
         if (this.deletedAt == null) {
             this.deletedAt = deletedAt;
+            this.withdrawalReason = reason;
             this.providerId = null;
             this.nickname = null;
             this.profileImageUrl = null;
