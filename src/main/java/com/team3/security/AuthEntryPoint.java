@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.team3.common.exception.ErrorCode;
+import com.team3.auth.enums.AuthErrorCode;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -29,7 +29,7 @@ public class AuthEntryPoint implements AuthenticationEntryPoint {
         AuthenticationException authException) throws IOException, ServletException {
         bearerEntryPoint.commence(request, response, authException);
 
-        ErrorCode errorCode = ErrorCode.AUTHENTICATION_REQUIRED;
+        AuthErrorCode errorCode = AuthErrorCode.AUTHENTICATION_REQUIRED;
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(errorCode.getStatus(), errorCode.getMessage());
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", errorCode.getCode());

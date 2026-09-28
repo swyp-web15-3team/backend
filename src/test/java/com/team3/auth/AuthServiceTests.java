@@ -5,7 +5,7 @@ import com.team3.user.exception.DeletedUserException;
 import com.team3.user.exception.UserNotFoundException;
 import com.team3.user.enums.UserErrorCode;
 import com.team3.auth.exception.InvalidUserIdException;
-import com.team3.common.exception.ErrorCode;
+import com.team3.auth.enums.AuthErrorCode;
 import com.team3.user.enums.AgreementType;
 import com.team3.user.User;
 import com.team3.user.enums.Provider;
@@ -386,7 +386,7 @@ class AuthServiceTests {
 
     private void assertInvalidUserId(Runnable action) {
         assertThatThrownBy(action::run).isInstanceOfSatisfying(InvalidUserIdException.class, ex -> {
-            assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INVALID_USER_ID);
+            assertThat(ex.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_USER_ID);
             assertThat(ex.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
             assertThat(ex.getErrorCode().getCode()).isEqualTo("AUTH_004");
         });

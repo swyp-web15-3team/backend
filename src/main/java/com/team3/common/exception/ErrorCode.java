@@ -7,13 +7,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode implements ErrorCodeDefinition {
-    AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "AUTH_001", "인증이 필요합니다."),
-
     WHISKY_NOT_FOUND(HttpStatus.NOT_FOUND, "WHISKY_001", "위스키를 찾을 수 없습니다."),
-
-    ALREADY_SIGNED_UP(HttpStatus.CONFLICT, "AUTH_002", "이미 가입이 완료된 사용자입니다."),
-
-    INVALID_USER_ID(HttpStatus.BAD_REQUEST, "AUTH_004", "유효하지 않은 사용자 ID입니다."),
 
     PLANNER_ITEMS_MISSING(HttpStatus.BAD_REQUEST, "PLANNER_001", "추가할 상품이 없습니다."),
 
