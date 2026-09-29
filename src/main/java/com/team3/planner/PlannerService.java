@@ -5,10 +5,17 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 import com.team3.common.exception.ErrorCode;
+import com.team3.exchange.ExchangeRateRepository;
+import com.team3.exchange.ExchangeRateResponse;
+import com.team3.exchange.ExchangeRateSnapshot;
 import com.team3.planner.dto.AddPlannerItemsRequest;
 import com.team3.planner.dto.AddPlannerItemsRequest.Item;
 import com.team3.planner.dto.AddPlannerItemsResponse;
@@ -34,21 +41,24 @@ public class PlannerService {
     private static final int MAX_QUANTITY = 20;
     private static final String JAPAN = "JP";
     private static final String YEN = "JPY";
-
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private final PlannerRepository planners;
     private final PlannerItemRepository items;
     private final SaleProductRepository saleProducts;
     private final PriceHistoryRepository prices;
+    private final ExchangeRateRepository exchangeRates;
 
     public PlannerService(
         PlannerRepository planners,
         PlannerItemRepository items,
         SaleProductRepository saleProducts,
-        PriceHistoryRepository prices) {
+        PriceHistoryRepository prices,
+        ExchangeRateRepository exchangeRates) {
         this.planners = planners;
         this.items = items;
         this.saleProducts = saleProducts;
         this.prices = prices;
+        this.exchangeRates = exchangeRates;
     }
 
     public AddPlannerItemsResponse addItems(Long userId, AddPlannerItemsRequest request) {
@@ -68,7 +78,9 @@ public class PlannerService {
             products.put(item.product().id(), item.product());
             latestPrices.put(item.product().id(), item.price());
         }
-        return new AddPlannerItemsResponse(PlannerItemResponse.from(created, products, latestPrices));
+        AppliedExchange exchange = loadJpyExchange(prepared);
+        return new AddPlannerItemsResponse(
+            PlannerItemResponse.from(created, products, latestPrices, exchange.rate(), exchange.date()));
     }
 
     @Transactional(readOnly = true)
@@ -197,7 +209,7 @@ public class PlannerService {
             listTypes.add(listType(item.listType()));
         }
         Map<Long, SaleProduct> products = loadProducts(saleProductIds);
-        Map<Long, WhiskyLatestPrice> latestPrices = loadYenPrices(saleProductIds);
+        Map<Long, WhiskyLatestPrice> latestPrices = loadLatestPrices(saleProductIds);
         List<PreparedItem> prepared = new ArrayList<>();
         for (int index = 0; index < saleProductIds.size(); index++) {
             Long saleProductId = saleProductIds.get(index);
@@ -205,19 +217,7 @@ public class PlannerService {
             if (product == null || product.whisky() == null) {
                 throw new PlannerException(ErrorCode.SALE_PRODUCT_NOT_FOUND, saleProductId);
             }
-            if (!JAPAN.equals(product.retailer().countryCode())) {
-                throw new PlannerException(ErrorCode.PLANNER_NOT_JAPANESE, saleProductId);
-            }
-            if (Boolean.TRUE.equals(product.isSoldOut())) {
-                throw new PlannerException(ErrorCode.PLANNER_SOLD_OUT, saleProductId);
-            }
-            if (product.isSoldOut() == null) {
-                throw new PlannerException(ErrorCode.PLANNER_STOCK_UNKNOWN, saleProductId);
-            }
             WhiskyLatestPrice price = latestPrices.get(saleProductId);
-            if (price == null) {
-                throw new PlannerException(ErrorCode.PLANNER_PRICE_MISSING, saleProductId);
-            }
             prepared.add(new PreparedItem(listTypes.get(index), quantities.get(index), product, price));
         }
         return prepared;
@@ -255,6 +255,35 @@ public class PlannerService {
             products.put(product.id(), product);
         }
         return products;
+    }
+
+    private Map<Long, WhiskyLatestPrice> loadLatestPrices(List<Long> saleProductIds) {
+        Map<Long, WhiskyLatestPrice> latestPrices = new HashMap<>();
+        for (WhiskyLatestPrice price : prices.findLatestPrices(saleProductIds)) {
+            latestPrices.put(price.saleProductId(), price);
+        }
+        return latestPrices;
+    }
+
+    private AppliedExchange loadJpyExchange(List<PreparedItem> prepared) {
+        boolean hasYenPrice = prepared.stream()
+            .map(PreparedItem::price)
+            .filter(Objects::nonNull)
+            .anyMatch(price -> YEN.equals(price.currencyCode()));
+        if (!hasYenPrice) {
+            return AppliedExchange.empty();
+        }
+        LocalDate date = LocalDate.now(SEOUL);
+        Optional<ExchangeRateSnapshot> snapshot = exchangeRates.findById(date);
+        if (snapshot.isEmpty()) {
+            return AppliedExchange.empty();
+        }
+        BigDecimal rate = ExchangeRateResponse.from(snapshot.get()).rates().stream()
+            .filter(item -> YEN.equals(item.currency()))
+            .map(ExchangeRateResponse.Rate::rate)
+            .findFirst()
+            .orElse(null);
+        return new AppliedExchange(rate, rate == null ? null : date);
     }
 
     private Map<Long, WhiskyLatestPrice> loadYenPrices(List<Long> saleProductIds) {
@@ -309,5 +338,12 @@ public class PlannerService {
         int quantity,
         SaleProduct product,
         WhiskyLatestPrice price) {
+    }
+
+    private record AppliedExchange(BigDecimal rate, LocalDate date) {
+
+        private static AppliedExchange empty() {
+            return new AppliedExchange(null, null);
+        }
     }
 }
