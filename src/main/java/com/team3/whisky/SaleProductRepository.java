@@ -11,6 +11,6 @@ public interface SaleProductRepository extends JpaRepository<SaleProduct, Long> 
     @EntityGraph(attributePaths = "retailer")
     List<SaleProduct> findByWhiskyIdOrderByIdAsc(Long whiskyId);
 
-    @EntityGraph(attributePaths = {"whisky", "retailer"})
+    @EntityGraph(attributePaths = {"whisky", "whisky.category", "retailer"})
     List<SaleProduct> findByIdIn(Collection<Long> ids);
 }

@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,11 +20,13 @@ import com.team3.exchange.ExchangeRateRepository;
 import com.team3.exchange.ExchangeRateSnapshot;
 import com.team3.planner.dto.AddPlannerItemsRequest;
 import com.team3.planner.dto.AddPlannerItemsResponse;
+import com.team3.planner.dto.PlannerResponse;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.Retailer;
 import com.team3.whisky.SaleProduct;
 import com.team3.whisky.SaleProductRepository;
 import com.team3.whisky.Whisky;
+import com.team3.whisky.WhiskyCategory;
 import com.team3.whisky.WhiskyLatestPrice;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -127,6 +130,26 @@ class PlannerServiceTests {
         assertThat(item.price().amountKrw()).isNull();
         assertThat(item.exchange()).isNull();
         assertThat(item.computable()).isFalse();
+    }
+
+    @Test
+    void includesWhiskyCategoryInPlannerItemResponse() {
+        PlannerItem item = mock(PlannerItem.class);
+        when(item.saleProductId()).thenReturn(43L);
+        SaleProduct product = mock(SaleProduct.class);
+        Whisky whisky = mock(Whisky.class);
+        WhiskyCategory category = mock(WhiskyCategory.class);
+        Retailer retailer = mock(Retailer.class);
+        when(product.whisky()).thenReturn(whisky);
+        when(product.retailer()).thenReturn(retailer);
+        when(whisky.category()).thenReturn(category);
+        when(category.id()).thenReturn(1L);
+        when(category.name()).thenReturn("싱글 몰트");
+
+        PlannerResponse response = PlannerResponse.from(List.of(item), Map.of(43L, product), Map.of());
+
+        assertThat(response.items().getFirst().category().id()).isEqualTo(1L);
+        assertThat(response.items().getFirst().category().name()).isEqualTo("싱글 몰트");
     }
 
     private SaleProduct product(Long id, boolean soldOut) {
