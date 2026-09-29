@@ -1,6 +1,7 @@
 package com.team3.planner;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -78,7 +79,8 @@ public class PlannerService {
             products.put(item.product().id(), item.product());
             latestPrices.put(item.product().id(), item.price());
         }
-        AppliedExchange exchange = loadJpyExchange(prepared);
+        AppliedExchange exchange = loadJpyExchange(
+            prepared.stream().map(PreparedItem::price).filter(Objects::nonNull).toList());
         return new AddPlannerItemsResponse(
             PlannerItemResponse.from(created, products, latestPrices, exchange.rate(), exchange.date()));
     }
@@ -97,7 +99,10 @@ public class PlannerService {
         for (PlannerItem item : found) {
             saleProductIds.add(item.saleProductId());
         }
-        return PlannerResponse.from(found, loadProducts(saleProductIds), loadYenPrices(saleProductIds));
+        Map<Long, WhiskyLatestPrice> latestPrices = loadLatestPrices(saleProductIds);
+        AppliedExchange exchange = loadJpyExchange(latestPrices.values());
+        return PlannerResponse.from(
+            found, loadProducts(saleProductIds), latestPrices, exchange.rate(), exchange.date());
     }
 
     public void deleteItem(Long userId, Long plannerItemId) {
@@ -265,10 +270,8 @@ public class PlannerService {
         return latestPrices;
     }
 
-    private AppliedExchange loadJpyExchange(List<PreparedItem> prepared) {
-        boolean hasYenPrice = prepared.stream()
-            .map(PreparedItem::price)
-            .filter(Objects::nonNull)
+    private AppliedExchange loadJpyExchange(Collection<WhiskyLatestPrice> latestPrices) {
+        boolean hasYenPrice = latestPrices.stream()
             .anyMatch(price -> YEN.equals(price.currencyCode()));
         if (!hasYenPrice) {
             return AppliedExchange.empty();
