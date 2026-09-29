@@ -34,7 +34,6 @@ public class PlannerService {
     private static final int MAX_QUANTITY = 20;
     private static final String JAPAN = "JP";
     private static final String YEN = "JPY";
-
     private final PlannerRepository planners;
     private final PlannerItemRepository items;
     private final SaleProductRepository saleProducts;
@@ -197,7 +196,7 @@ public class PlannerService {
             listTypes.add(listType(item.listType()));
         }
         Map<Long, SaleProduct> products = loadProducts(saleProductIds);
-        Map<Long, WhiskyLatestPrice> latestPrices = loadYenPrices(saleProductIds);
+        Map<Long, WhiskyLatestPrice> latestPrices = loadLatestPrices(saleProductIds);
         List<PreparedItem> prepared = new ArrayList<>();
         for (int index = 0; index < saleProductIds.size(); index++) {
             Long saleProductId = saleProductIds.get(index);
@@ -205,19 +204,7 @@ public class PlannerService {
             if (product == null || product.whisky() == null) {
                 throw new PlannerException(ErrorCode.SALE_PRODUCT_NOT_FOUND, saleProductId);
             }
-            if (!JAPAN.equals(product.retailer().countryCode())) {
-                throw new PlannerException(ErrorCode.PLANNER_NOT_JAPANESE, saleProductId);
-            }
-            if (Boolean.TRUE.equals(product.isSoldOut())) {
-                throw new PlannerException(ErrorCode.PLANNER_SOLD_OUT, saleProductId);
-            }
-            if (product.isSoldOut() == null) {
-                throw new PlannerException(ErrorCode.PLANNER_STOCK_UNKNOWN, saleProductId);
-            }
             WhiskyLatestPrice price = latestPrices.get(saleProductId);
-            if (price == null) {
-                throw new PlannerException(ErrorCode.PLANNER_PRICE_MISSING, saleProductId);
-            }
             prepared.add(new PreparedItem(listTypes.get(index), quantities.get(index), product, price));
         }
         return prepared;
@@ -255,6 +242,14 @@ public class PlannerService {
             products.put(product.id(), product);
         }
         return products;
+    }
+
+    private Map<Long, WhiskyLatestPrice> loadLatestPrices(List<Long> saleProductIds) {
+        Map<Long, WhiskyLatestPrice> latestPrices = new HashMap<>();
+        for (WhiskyLatestPrice price : prices.findLatestPrices(saleProductIds)) {
+            latestPrices.put(price.saleProductId(), price);
+        }
+        return latestPrices;
     }
 
     private Map<Long, WhiskyLatestPrice> loadYenPrices(List<Long> saleProductIds) {

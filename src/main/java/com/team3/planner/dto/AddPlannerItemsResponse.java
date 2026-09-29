@@ -1,6 +1,7 @@
 package com.team3.planner.dto;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ public record AddPlannerItemsResponse(List<PlannerItemResponse> items) {
         String countryCode,
         boolean isDutyFree,
         String productUrl,
-        boolean isSoldOut,
+        Boolean isSoldOut,
         Price price,
         Exchange exchange,
         boolean computable) {
@@ -46,6 +47,7 @@ public record AddPlannerItemsResponse(List<PlannerItemResponse> items) {
         public static PlannerItemResponse from(PlannerItem item, SaleProduct product, WhiskyLatestPrice latestPrice) {
             Whisky whisky = product.whisky();
             Retailer retailer = product.retailer();
+            Price price = toPrice(latestPrice);
             return new PlannerItemResponse(
                 item.id(),
                 item.listType(),
@@ -59,10 +61,24 @@ public record AddPlannerItemsResponse(List<PlannerItemResponse> items) {
                 retailer.countryCode(),
                 retailer.isDutyFree(),
                 product.productUrl(),
-                false,
-                new Price(latestPrice.amount(), latestPrice.currencyCode(), null, latestPrice.collectedAt(), false),
+                product.isSoldOut(),
+                price,
                 null,
-                false);
+                price != null && price.amountKrw() != null);
+        }
+
+        private static Price toPrice(WhiskyLatestPrice latestPrice) {
+            if (latestPrice == null) {
+                return null;
+            }
+            BigDecimal amountKrw = "KRW".equals(latestPrice.currencyCode()) ? latestPrice.amount() : null;
+            boolean stale = latestPrice.collectedAt().isBefore(Instant.now().minus(Duration.ofHours(24)));
+            return new Price(
+                latestPrice.amount(),
+                latestPrice.currencyCode(),
+                amountKrw,
+                latestPrice.collectedAt(),
+                stale);
         }
     }
 

@@ -21,10 +21,6 @@ public enum ErrorCode implements ErrorCodeDefinition {
 
     PLANNER_INVALID_LIST_TYPE(HttpStatus.BAD_REQUEST, "PLANNER_006", "listType은 PURCHASE 또는 CANDIDATE여야 합니다."),
 
-    PLANNER_NOT_JAPANESE(HttpStatus.BAD_REQUEST, "PLANNER_007", "일본 판매 상품만 추가할 수 있습니다."),
-
-    PLANNER_SOLD_OUT(HttpStatus.BAD_REQUEST, "PLANNER_008", "품절 상품은 추가할 수 없습니다."),
-
     PLANNER_STOCK_UNKNOWN(HttpStatus.BAD_REQUEST, "PLANNER_009", "구매 가능 여부가 확인되지 않은 상품입니다."),
 
     PLANNER_PRICE_MISSING(HttpStatus.BAD_REQUEST, "PLANNER_010", "가격 정보가 없는 상품입니다."),
