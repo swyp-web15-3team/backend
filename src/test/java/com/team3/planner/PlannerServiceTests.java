@@ -146,10 +146,34 @@ class PlannerServiceTests {
         when(category.id()).thenReturn(1L);
         when(category.name()).thenReturn("싱글 몰트");
 
-        PlannerResponse response = PlannerResponse.from(List.of(item), Map.of(43L, product), Map.of());
+        PlannerResponse response = PlannerResponse.from(
+            List.of(item), Map.of(43L, product), Map.of(), null, null);
 
         assertThat(response.items().getFirst().category().id()).isEqualTo(1L);
         assertThat(response.items().getFirst().category().name()).isEqualTo("싱글 몰트");
+    }
+
+    @Test
+    void convertsPlannerYenPriceWithTodaysExchangeRate() {
+        Planner planner = mock(Planner.class);
+        when(planner.id()).thenReturn(10L);
+        when(planners.findByUserId(42L)).thenReturn(Optional.of(planner));
+        PlannerItem plannerItem = mock(PlannerItem.class);
+        when(plannerItem.saleProductId()).thenReturn(501L);
+        when(items.findByPlannerIdOrderByIdAsc(10L)).thenReturn(List.of(plannerItem));
+        SaleProduct product = product(501L, false, "JP");
+        when(saleProducts.findByIdIn(List.of(501L))).thenReturn(List.of(product));
+        when(prices.findLatestPrices(List.of(501L))).thenReturn(List.of(
+            new WhiskyLatestPrice(
+                101L, new BigDecimal("9800"), "JPY", "JP", "나리타 면세", Instant.now(), 501L)));
+        when(exchangeRates.findById(any(LocalDate.class))).thenReturn(Optional.of(exchangeRate("JPY(100)", "959")));
+
+        PlannerResponse response = service.getPlanner(42L);
+
+        PlannerResponse.PlannerListItemResponse item = response.items().getFirst();
+        assertThat(item.price().amountKrw()).isEqualByComparingTo("93982");
+        assertThat(item.exchange().krwPerJpy()).isEqualByComparingTo("9.59");
+        assertThat(item.computable()).isTrue();
     }
 
     private SaleProduct product(Long id, boolean soldOut) {
