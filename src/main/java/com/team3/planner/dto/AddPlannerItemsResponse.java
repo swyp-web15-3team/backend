@@ -36,18 +36,30 @@ public record AddPlannerItemsResponse(List<PlannerItemResponse> items) {
         boolean computable) {
 
         public static List<PlannerItemResponse> from(List<PlannerItem> created, Map<Long, SaleProduct> products,
-            Map<Long, WhiskyLatestPrice> latestPrices) {
+            Map<Long, WhiskyLatestPrice> latestPrices, BigDecimal krwPerJpy, LocalDate rateDate) {
             List<PlannerItemResponse> responses = new ArrayList<>();
             for (PlannerItem item : created) {
-                responses.add(from(item, products.get(item.saleProductId()), latestPrices.get(item.saleProductId())));
+                responses.add(
+                    from(
+                        item,
+                        products.get(item.saleProductId()),
+                        latestPrices.get(item.saleProductId()),
+                        krwPerJpy,
+                        rateDate));
             }
             return responses;
         }
 
-        public static PlannerItemResponse from(PlannerItem item, SaleProduct product, WhiskyLatestPrice latestPrice) {
+        public static PlannerItemResponse from(
+            PlannerItem item,
+            SaleProduct product,
+            WhiskyLatestPrice latestPrice,
+            BigDecimal krwPerJpy,
+            LocalDate rateDate) {
             Whisky whisky = product.whisky();
             Retailer retailer = product.retailer();
-            Price price = toPrice(latestPrice);
+            Price price = toPrice(latestPrice, krwPerJpy);
+            Exchange exchange = toExchange(latestPrice, krwPerJpy, rateDate);
             return new PlannerItemResponse(
                 item.id(),
                 item.listType(),
@@ -63,15 +75,20 @@ public record AddPlannerItemsResponse(List<PlannerItemResponse> items) {
                 product.productUrl(),
                 product.isSoldOut(),
                 price,
-                null,
+                exchange,
                 price != null && price.amountKrw() != null);
         }
 
-        private static Price toPrice(WhiskyLatestPrice latestPrice) {
+        private static Price toPrice(WhiskyLatestPrice latestPrice, BigDecimal krwPerJpy) {
             if (latestPrice == null) {
                 return null;
             }
-            BigDecimal amountKrw = "KRW".equals(latestPrice.currencyCode()) ? latestPrice.amount() : null;
+            BigDecimal amountKrw = null;
+            if ("KRW".equals(latestPrice.currencyCode())) {
+                amountKrw = latestPrice.amount();
+            } else if ("JPY".equals(latestPrice.currencyCode()) && krwPerJpy != null) {
+                amountKrw = latestPrice.amount().multiply(krwPerJpy);
+            }
             boolean stale = latestPrice.collectedAt().isBefore(Instant.now().minus(Duration.ofHours(24)));
             return new Price(
                 latestPrice.amount(),
@@ -79,6 +96,15 @@ public record AddPlannerItemsResponse(List<PlannerItemResponse> items) {
                 amountKrw,
                 latestPrice.collectedAt(),
                 stale);
+        }
+
+        private static Exchange toExchange(
+            WhiskyLatestPrice latestPrice, BigDecimal krwPerJpy, LocalDate rateDate) {
+            if (latestPrice == null || !"JPY".equals(latestPrice.currencyCode())
+                || krwPerJpy == null || rateDate == null) {
+                return null;
+            }
+            return new Exchange("KOREA_EXIM", krwPerJpy, rateDate, rateDate);
         }
     }
 
