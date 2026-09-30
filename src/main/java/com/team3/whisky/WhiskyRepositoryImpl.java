@@ -1,9 +1,12 @@
 package com.team3.whisky;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import com.team3.collection.QCollectionWhisky;
 import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQuery;
@@ -89,15 +92,20 @@ public class WhiskyRepositoryImpl implements WhiskyRepositoryCustom {
     @Override
     public Page<Whisky> search(
         String keyword,
-        Long categoryId,
+        List<Long> categoryIds,
         Long originId,
         Long regionId,
         Integer volumeMl,
         String countryCode,
         Boolean isDutyFree,
+        BigDecimal minPrice,
+        BigDecimal maxPrice,
+        BigDecimal minPriceDiffPercent,
+        BigDecimal maxPriceDiffPercent,
+        BigDecimal krwPerJpy,
         Pageable pageable) {
-        BooleanBuilder where = searchPredicate(keyword, categoryId, originId, regionId, volumeMl, countryCode,
-            isDutyFree);
+        BooleanBuilder where = searchPredicate(keyword, categoryIds, originId, regionId, volumeMl, countryCode,
+            isDutyFree, minPrice, maxPrice, minPriceDiffPercent, maxPriceDiffPercent, krwPerJpy);
         Long total = queryFactory.select(WHISKY.id.count()).from(WHISKY).where(where).fetchOne();
         long totalCount = total == null ? 0L : total;
         if (totalCount == 0L || pageable.isPaged() && pageable.getOffset() >= totalCount) {
@@ -118,18 +126,23 @@ public class WhiskyRepositoryImpl implements WhiskyRepositoryCustom {
 
     private static BooleanBuilder searchPredicate(
         String keyword,
-        Long categoryId,
+        List<Long> categoryIds,
         Long originId,
         Long regionId,
         Integer volumeMl,
         String countryCode,
-        Boolean isDutyFree) {
+        Boolean isDutyFree,
+        BigDecimal minPrice,
+        BigDecimal maxPrice,
+        BigDecimal minPriceDiffPercent,
+        BigDecimal maxPriceDiffPercent,
+        BigDecimal krwPerJpy) {
         BooleanBuilder where = new BooleanBuilder();
         if (keyword != null) {
             where.and(WHISKY.name.like("%" + keyword + "%"));
         }
-        if (categoryId != null) {
-            where.and(WHISKY.category.id.eq(categoryId));
+        if (categoryIds != null && !categoryIds.isEmpty()) {
+            where.and(WHISKY.category.id.in(categoryIds));
         }
         if (originId != null) {
             where.and(WHISKY.origin.id.eq(originId));
@@ -150,6 +163,55 @@ public class WhiskyRepositoryImpl implements WhiskyRepositoryCustom {
                     isDutyFree == null ? null : RETAILER.dutyFree.eq(isDutyFree))
                 .exists());
         }
+        if (minPrice != null || maxPrice != null) {
+            NumberExpression<BigDecimal> krPrice = latestCountryPrice("KR", "KRW", "kr");
+            NumberExpression<BigDecimal> jpPrice = latestCountryPrice("JP", "JPY", "jp")
+                .multiply(krwPerJpy);
+            NumberExpression<BigDecimal> cheaperPrice = Expressions.numberTemplate(BigDecimal.class,
+                "case when {0} is null then {1} when {1} is null then {0} "
+                    + "when {0} <= {1} then {0} else {1} end",
+                krPrice, jpPrice);
+            where.and(cheaperPrice.isNotNull());
+            if (minPrice != null) {
+                where.and(cheaperPrice.goe(minPrice));
+            }
+            if (maxPrice != null) {
+                where.and(cheaperPrice.loe(maxPrice));
+            }
+        }
+        if (minPriceDiffPercent != null || maxPriceDiffPercent != null) {
+            NumberExpression<BigDecimal> krPrice = latestCountryPrice("KR", "KRW", "krDiscount");
+            NumberExpression<BigDecimal> jpPrice = latestCountryPrice("JP", "JPY", "jpDiscount")
+                .multiply(krwPerJpy);
+            NumberExpression<BigDecimal> differenceTimes100 = krPrice.subtract(jpPrice)
+                .multiply(BigDecimal.valueOf(100));
+            where.and(krPrice.isNotNull()).and(jpPrice.isNotNull()).and(jpPrice.lt(krPrice));
+            if (minPriceDiffPercent != null) {
+                where.and(differenceTimes100.goe(krPrice.multiply(minPriceDiffPercent)));
+            }
+            if (maxPriceDiffPercent != null) {
+                where.and(differenceTimes100.lt(krPrice.multiply(maxPriceDiffPercent)));
+            }
+        }
         return where;
+    }
+
+    private static NumberExpression<BigDecimal> latestCountryPrice(String country, String currency, String alias) {
+        QSaleProduct product = new QSaleProduct(alias + "Product");
+        QRetailer retailer = new QRetailer(alias + "Retailer");
+        QPriceHistory history = new QPriceHistory(alias + "History");
+        QPriceHistory latest = new QPriceHistory(alias + "Latest");
+        return Expressions.numberTemplate(BigDecimal.class, "({0})", JPAExpressions.select(history.price.min())
+            .from(history)
+            .join(history.saleProduct, product)
+            .join(product.retailer, retailer)
+            .where(
+                product.whisky.eq(WHISKY),
+                product.soldOut.eq(false),
+                retailer.countryCode.eq(country),
+                history.currencyCode.eq(currency),
+                history.collectedAt.eq(JPAExpressions.select(latest.collectedAt.max())
+                    .from(latest)
+                    .where(latest.saleProduct.eq(product)))));
     }
 }

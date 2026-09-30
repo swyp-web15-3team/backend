@@ -5,7 +5,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,12 +15,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
 import com.team3.security.SecurityConfig;
+import com.team3.exchange.ExchangeRateService;
+import com.team3.exchange.ExchangeRateSnapshot;
+import com.team3.exchange.exception.ExchangeRateNotFoundException;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -59,6 +69,9 @@ class WhiskyHttpTests {
 
     @MockitoBean
     private SaleProductRepository saleProducts;
+
+    @MockitoBean
+    private ExchangeRateService exchangeRates;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -121,8 +134,7 @@ class WhiskyHttpTests {
     void returnsWhiskiesWithoutAuthentication() throws Exception {
         Whisky lagavulin16 = listedWhisky();
         when(lagavulin16.imageUrl()).thenReturn("https://example.com/whisky.jpg");
-        when(whiskies.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
-            .thenReturn(new PageImpl<>(List.of(lagavulin16), PageRequest.of(0, 20), 1));
+        whenSearchReturns(new PageImpl<>(List.of(lagavulin16), PageRequest.of(0, 20), 1));
         when(prices.findLatestAvailablePrices(List.of(101L))).thenReturn(List.of(
             new WhiskyLatestPrice(
                 101L, new BigDecimal("189000"), "KRW", "KR", "롯데면세점", COLLECTED_AT, 1L),
@@ -163,8 +175,7 @@ class WhiskyHttpTests {
 
     @Test
     void returnsEmptyWhiskiesWhenNoneExist() throws Exception {
-        when(whiskies.search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
-            .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+        whenSearchReturns(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         mvc.perform(get("/api/v1/whiskies"))
             .andExpect(status().isOk())
@@ -176,8 +187,7 @@ class WhiskyHttpTests {
     @Test
     void returnsMatchingWhiskiesForQuery() throws Exception {
         Whisky lagavulin16 = listedWhisky();
-        when(whiskies.search(eq("라가"), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
-            .thenReturn(new PageImpl<>(List.of(lagavulin16), PageRequest.of(0, 20), 1));
+        whenSearchReturns(new PageImpl<>(List.of(lagavulin16), PageRequest.of(0, 20), 1));
         when(prices.findLatestAvailablePrices(List.of(101L))).thenReturn(List.of());
 
         mvc.perform(get("/api/v1/whiskies").param("query", " 라가 "))
@@ -222,6 +232,107 @@ class WhiskyHttpTests {
         mvc.perform(get("/api/v1/whiskies").param("categoryId", "99"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.detail").value("존재하지 않는 필터 값입니다."));
+    }
+
+    @Test
+    void acceptsRepeatedCategoriesAndDeduplicatesValidatedIds() throws Exception {
+        when(categories.existsById(2L)).thenReturn(true);
+        when(categories.existsById(3L)).thenReturn(true);
+        whenSearchReturns(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        mvc.perform(get("/api/v1/whiskies").param("categoryId", "2", "2", "3"));
+
+        verify(whiskies).search(isNull(), eq(List.of(2L, 3L)), isNull(), isNull(), isNull(), isNull(), isNull(),
+            isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void acceptsSingleCategoryId() throws Exception {
+        when(categories.existsById(2L)).thenReturn(true);
+        whenSearchReturns(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        mvc.perform(get("/api/v1/whiskies").param("categoryId", "2"));
+
+        verify(whiskies).search(isNull(), eq(List.of(2L)), isNull(), isNull(), isNull(), isNull(), isNull(),
+            isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void passesPriceFiltersAndNormalizedYenRateToSearch() throws Exception {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        ExchangeRateSnapshot snapshot = new ExchangeRateSnapshot(today,
+            new ObjectMapper().readTree("[{\"cur_unit\":\"JPY(100)\",\"deal_bas_r\":\"959.00\"}]"));
+        when(exchangeRates.getRates(today)).thenReturn(snapshot);
+        whenSearchReturns(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        mvc.perform(get("/api/v1/whiskies").param("minPrice", "10000").param("maxPrice", "50000")
+            .param("minPriceDiffPercent", "10").param("maxPriceDiffPercent", "20"));
+
+        verify(whiskies).search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+            eq(new BigDecimal("10000")), eq(new BigDecimal("50000")), eq(new BigDecimal("10")),
+            eq(new BigDecimal("20")), eq(new BigDecimal("9.5900")), any(Pageable.class));
+        verify(exchangeRates).getRates(today);
+    }
+
+    @Test
+    void usesYesterdayRateWhenTodaysRateIsNotFound() throws Exception {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        when(exchangeRates.getRates(today)).thenThrow(new ExchangeRateNotFoundException());
+        when(exchangeRates.getRates(today.minusDays(1))).thenReturn(new ExchangeRateSnapshot(today.minusDays(1),
+            new ObjectMapper().readTree("[{\"cur_unit\":\"JPY(100)\",\"deal_bas_r\":\"959.00\"}]")));
+        whenSearchReturns(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        mvc.perform(get("/api/v1/whiskies").param("minPrice", "10000"))
+            .andExpect(status().isOk());
+
+        InOrder order = Mockito.inOrder(exchangeRates);
+        order.verify(exchangeRates).getRates(today);
+        order.verify(exchangeRates).getRates(today.minusDays(1));
+        verify(whiskies).search(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+            eq(new BigDecimal("10000")), isNull(), isNull(), isNull(), eq(new BigDecimal("9.5900")),
+            any(Pageable.class));
+        verifyNoMoreInteractions(exchangeRates);
+    }
+
+    @Test
+    void returnsUnavailableAfterSevenMissingRateDates() throws Exception {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        when(exchangeRates.getRates(any(LocalDate.class))).thenThrow(new ExchangeRateNotFoundException());
+
+        mvc.perform(get("/api/v1/whiskies").param("minPrice", "10000"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.detail").value("오늘의 엔화 환율 정보를 사용할 수 없습니다."));
+
+        InOrder order = Mockito.inOrder(exchangeRates);
+        for (int daysBack = 0; daysBack < 7; daysBack++) {
+            order.verify(exchangeRates).getRates(today.minusDays(daysBack));
+        }
+        verify(exchangeRates, times(7)).getRates(any(LocalDate.class));
+        verifyNoMoreInteractions(exchangeRates);
+    }
+
+    @Test
+    void rejectsInvalidPriceRangesWithoutSearching() throws Exception {
+        mvc.perform(get("/api/v1/whiskies").param("minPrice", "20").param("maxPrice", "10"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/whiskies").param("minPriceDiffPercent", "20")
+            .param("maxPriceDiffPercent", "20"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returnsGenericUnavailableForInvalidRateAndProviderFailure() throws Exception {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        when(exchangeRates.getRates(today)).thenReturn(new ExchangeRateSnapshot(today,
+            new ObjectMapper().readTree("[{\"cur_unit\":\"USD\",\"deal_bas_r\":\"1350.00\"}]")))
+            .thenThrow(new com.team3.exchange.exception.ExchangeRateProviderException());
+
+        mvc.perform(get("/api/v1/whiskies").param("minPrice", "10000"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.detail").value("오늘의 엔화 환율 정보를 사용할 수 없습니다."));
+        mvc.perform(get("/api/v1/whiskies").param("minPrice", "10000"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.detail").value("오늘의 엔화 환율 정보를 사용할 수 없습니다."));
     }
 
     @Test
@@ -443,6 +554,11 @@ class WhiskyHttpTests {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.status").value(400))
             .andExpect(jsonPath("$.detail").value("위스키 ID가 올바르지 않습니다."));
+    }
+
+    private void whenSearchReturns(PageImpl<Whisky> page) {
+        when(whiskies.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+            any(Pageable.class))).thenReturn(page);
     }
 
     private Whisky whisky(Long id, String name) {

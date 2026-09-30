@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import com.team3.exchange.ExchangeRateService;
 import com.team3.security.SecurityConfig;
 import com.team3.user.User;
 import com.team3.user.enums.Provider;
@@ -90,6 +91,9 @@ class CollectionHttpTests {
 
     @MockitoBean
     private SaleProductRepository saleProducts;
+
+    @MockitoBean
+    private ExchangeRateService exchangeRates;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;

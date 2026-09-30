@@ -1,5 +1,8 @@
 package com.team3.whisky;
 
+import java.math.BigDecimal;
+import java.util.List;
+
 import com.team3.common.ApiResponse;
 import com.team3.whisky.dto.WhiskyDetailResponse;
 import com.team3.whisky.dto.WhiskyListResponse;
@@ -23,18 +26,35 @@ public class WhiskyController {
     @GetMapping("/api/v1/whiskies")
     public ApiResponse<WhiskyListResponse> getWhiskies(
         @RequestParam(required = false) String query,
-        @RequestParam(required = false) Long categoryId,
+        @RequestParam(value = "categoryId", required = false) List<Long> categoryIds,
         @RequestParam(required = false) Long originId,
         @RequestParam(required = false) Long regionId,
         @RequestParam(required = false) Integer volumeMl,
         @RequestParam(required = false) String countryCode,
         @RequestParam(required = false) Boolean isDutyFree,
+        @RequestParam(required = false) BigDecimal minPrice,
+        @RequestParam(required = false) BigDecimal maxPrice,
+        @RequestParam(required = false) BigDecimal minPriceDiffPercent,
+        @RequestParam(required = false) BigDecimal maxPriceDiffPercent,
         @RequestParam(required = false) String sort,
         @RequestParam(required = false) Integer page,
         @RequestParam(required = false) Integer size) {
         return ApiResponse.of(
             whiskies.getWhiskies(
-                query, categoryId, originId, regionId, volumeMl, countryCode, isDutyFree, sort, page, size));
+                query,
+                categoryIds,
+                originId,
+                regionId,
+                volumeMl,
+                countryCode,
+                isDutyFree,
+                minPrice,
+                maxPrice,
+                minPriceDiffPercent,
+                maxPriceDiffPercent,
+                sort,
+                page,
+                size));
     }
 
     @GetMapping("/api/v1/whiskies/suggestions")
