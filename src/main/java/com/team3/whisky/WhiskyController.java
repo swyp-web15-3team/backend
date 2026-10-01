@@ -1,15 +1,15 @@
 package com.team3.whisky;
 
-import java.math.BigDecimal;
-import java.util.List;
-
 import com.team3.common.ApiResponse;
 import com.team3.whisky.dto.WhiskyDetailResponse;
 import com.team3.whisky.dto.WhiskyListResponse;
 import com.team3.whisky.dto.WhiskyRelatedResponse;
+import com.team3.whisky.dto.WhiskySearchRequest;
 import com.team3.whisky.dto.WhiskySuggestionsResponse;
 
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,36 +25,8 @@ public class WhiskyController {
 
     @GetMapping("/api/v1/whiskies")
     public ApiResponse<WhiskyListResponse> getWhiskies(
-        @RequestParam(required = false) String query,
-        @RequestParam(value = "categoryId", required = false) List<Long> categoryIds,
-        @RequestParam(required = false) Long originId,
-        @RequestParam(required = false) Long regionId,
-        @RequestParam(required = false) Integer volumeMl,
-        @RequestParam(required = false) String countryCode,
-        @RequestParam(required = false) Boolean isDutyFree,
-        @RequestParam(required = false) BigDecimal minPrice,
-        @RequestParam(required = false) BigDecimal maxPrice,
-        @RequestParam(required = false) BigDecimal minPriceDiffPercent,
-        @RequestParam(required = false) BigDecimal maxPriceDiffPercent,
-        @RequestParam(required = false) String sort,
-        @RequestParam(required = false) Integer page,
-        @RequestParam(required = false) Integer size) {
-        return ApiResponse.of(
-            whiskies.getWhiskies(
-                query,
-                categoryIds,
-                originId,
-                regionId,
-                volumeMl,
-                countryCode,
-                isDutyFree,
-                minPrice,
-                maxPrice,
-                minPriceDiffPercent,
-                maxPriceDiffPercent,
-                sort,
-                page,
-                size));
+        @ParameterObject @ModelAttribute WhiskySearchRequest request) {
+        return ApiResponse.of(whiskies.getWhiskies(request));
     }
 
     @GetMapping("/api/v1/whiskies/suggestions")

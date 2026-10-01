@@ -1,5 +1,7 @@
 package com.team3.whisky;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -10,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -209,6 +212,25 @@ class WhiskyHttpTests {
         mvc.perform(get("/api/v1/whiskies").param("size", "51"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.detail").value("size는 1 이상 50 이하여야 합니다."));
+    }
+
+    @Test
+    void rejectsMalformedSearchNumbersWithoutEchoingRejectedValues() throws Exception {
+        mvc.perform(get("/api/v1/whiskies").param("size", "private-text"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors.length()").value(1))
+            .andExpect(jsonPath("$.errors[0].field").value("size"))
+            .andExpect(jsonPath("$.errors[0].message").value("Invalid value."))
+            .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist())
+            .andExpect(content().string(not(containsString("private-text"))));
+
+        mvc.perform(get("/api/v1/whiskies").param("categoryId", "private-text"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors.length()").value(1))
+            .andExpect(jsonPath("$.errors[0].field").value("categoryId"))
+            .andExpect(jsonPath("$.errors[0].message").value("Invalid value."))
+            .andExpect(jsonPath("$.errors[0].rejectedValue").doesNotExist())
+            .andExpect(content().string(not(containsString("private-text"))));
     }
 
     @Test

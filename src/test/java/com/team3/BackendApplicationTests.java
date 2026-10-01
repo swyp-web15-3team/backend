@@ -5,8 +5,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.TimeZone;
+import java.util.stream.StreamSupport;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -44,9 +49,11 @@ import com.team3.whisky.WhiskyRepository;
 class BackendApplicationTests {
 
     private final MockMvc mvc;
+    private final ObjectMapper objectMapper;
 
-    BackendApplicationTests(MockMvc mvc) {
+    BackendApplicationTests(MockMvc mvc, ObjectMapper objectMapper) {
         this.mvc = mvc;
+        this.objectMapper = objectMapper;
     }
 
     @MockitoBean
@@ -116,5 +123,41 @@ class BackendApplicationTests {
     void healthEndpointDoesNotRequireAuthentication() throws Exception {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void whiskySearchOpenApiDocumentsIndividualQueryParameters() throws Exception {
+        String apiDocs = mvc.perform(get("/v3/api-docs"))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        JsonNode operation = objectMapper.readTree(apiDocs).path("paths").path("/api/v1/whiskies").path("get");
+        JsonNode parameters = operation.path("parameters");
+
+        Map<String, JsonNode> parametersByName = new HashMap<>();
+        parameters.forEach(parameter -> parametersByName.put(parameter.path("name").asText(), parameter));
+        assertThat(parametersByName).hasSize(parameters.size()).containsKeys(
+            "query", "categoryId", "originId", "regionId", "volumeMl", "countryCode", "isDutyFree",
+            "minPrice", "maxPrice", "minPriceDiffPercent", "maxPriceDiffPercent", "sort", "page", "size");
+        assertThat(operation.has("requestBody")).isFalse();
+        parameters.forEach(parameter -> {
+            assertThat(parameter.path("in").asText()).isEqualTo("query");
+            assertThat(parameter.path("schema").path("type").asText()).isNotEqualTo("object");
+        });
+
+        JsonNode sortSchema = parametersByName.get("sort").path("schema");
+        assertThat(StreamSupport.stream(sortSchema.path("enum").spliterator(), false)
+            .map(JsonNode::asText).toList()).containsExactly("name,asc", "name,desc", "id,asc", "id,desc");
+        assertThat(sortSchema.path("default").asText()).isEqualTo("name,asc");
+
+        JsonNode categoryId = parametersByName.get("categoryId");
+        assertThat(categoryId.path("schema").path("type").asText()).isEqualTo("array");
+        assertThat(categoryId.path("style").asText()).isEqualTo("form");
+        assertThat(categoryId.path("explode").asBoolean()).isTrue();
+        assertThat(parametersByName.get("minPrice").path("schema").path("minimum").asDouble()).isZero();
+        assertThat(parametersByName.get("maxPrice").path("schema").path("minimum").asDouble()).isZero();
+        assertThat(parametersByName.get("minPriceDiffPercent").path("example").asText())
+            .isEqualTo("20");
+        assertThat(parametersByName.get("maxPriceDiffPercent").path("example").asText())
+            .isEqualTo("40");
     }
 }

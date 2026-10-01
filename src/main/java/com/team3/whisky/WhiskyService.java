@@ -19,6 +19,7 @@ import com.team3.whisky.dto.WhiskyDetailResponse.SaleProductItem;
 import com.team3.whisky.dto.WhiskyListResponse;
 import com.team3.whisky.dto.WhiskyListResponse.WhiskyItem;
 import com.team3.whisky.dto.WhiskyRelatedResponse;
+import com.team3.whisky.dto.WhiskySearchRequest;
 import com.team3.whisky.dto.WhiskySuggestionsResponse;
 import com.team3.whisky.dto.WhiskySuggestionsResponse.Suggestion;
 
@@ -82,44 +83,34 @@ public class WhiskyService {
         return new WhiskySuggestionsResponse(suggestions);
     }
 
-    public WhiskyListResponse getWhiskies(
-        String query,
-        List<Long> categoryIds,
-        Long originId,
-        Long regionId,
-        Integer volumeMl,
-        String countryCode,
-        Boolean isDutyFree,
-        BigDecimal minPrice,
-        BigDecimal maxPrice,
-        BigDecimal minPriceDiffPercent,
-        BigDecimal maxPriceDiffPercent,
-        String sort,
-        Integer page,
-        Integer size) {
-        String keyword = query == null ? null : keyword(query);
-        int pageNumber = pageNumber(page);
-        int pageSize = pageSize(size);
-        String saleCountry = saleCountry(countryCode);
-        List<Long> validatedCategoryIds = validateFilters(categoryIds, originId, regionId);
-        validatePriceFilters(minPrice, maxPrice, minPriceDiffPercent, maxPriceDiffPercent);
-        boolean hasPriceFilters = minPrice != null || maxPrice != null
-            || minPriceDiffPercent != null || maxPriceDiffPercent != null;
+    public WhiskyListResponse getWhiskies(WhiskySearchRequest request) {
+        String keyword = request.query() == null ? null : keyword(request.query());
+        int pageNumber = pageNumber(request.page());
+        int pageSize = pageSize(request.size());
+        String saleCountry = saleCountry(request.countryCode());
+        List<Long> validatedCategoryIds = validateFilters(request.categoryId(), request.originId(), request.regionId());
+        validatePriceFilters(
+            request.minPrice(),
+            request.maxPrice(),
+            request.minPriceDiffPercent(),
+            request.maxPriceDiffPercent());
+        boolean hasPriceFilters = request.minPrice() != null || request.maxPrice() != null
+            || request.minPriceDiffPercent() != null || request.maxPriceDiffPercent() != null;
         BigDecimal krwPerJpy = hasPriceFilters ? currentKrwPerJpy() : null;
         Page<Whisky> found = whiskies.search(
             keyword,
             validatedCategoryIds,
-            originId,
-            regionId,
-            volumeMl,
+            request.originId(),
+            request.regionId(),
+            request.volumeMl(),
             saleCountry,
-            isDutyFree,
-            minPrice,
-            maxPrice,
-            minPriceDiffPercent,
-            maxPriceDiffPercent,
+            request.isDutyFree(),
+            request.minPrice(),
+            request.maxPrice(),
+            request.minPriceDiffPercent(),
+            request.maxPriceDiffPercent(),
             krwPerJpy,
-            PageRequest.of(pageNumber, pageSize, listSort(sort)));
+            PageRequest.of(pageNumber, pageSize, listSort(request.sort())));
         return listResponse(found, pageNumber, pageSize);
     }
 

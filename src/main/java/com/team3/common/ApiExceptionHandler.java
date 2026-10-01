@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -42,6 +43,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(ex, problem, headers, status, request);
     }
 
+    @ExceptionHandler(BindException.class)
+    public ResponseEntity<Object> handleBindException(
+        BindException ex,
+        WebRequest request) {
+        HttpStatusCode status = HttpStatus.BAD_REQUEST;
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Request validation failed.");
+        List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()
+            .map(this::toValidationError)
+            .toList();
+        problem.setProperty("errors", errors);
+        return handleExceptionInternal(ex, problem, new HttpHeaders(), status, request);
+    }
+
     @Override
     protected ResponseEntity<Object> handleTypeMismatch(
         TypeMismatchException ex,
@@ -64,7 +78,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private Map<String, String> toValidationError(FieldError error) {
-        String message = Objects.requireNonNullElse(error.getDefaultMessage(), "Invalid value.");
+        String message = error.isBindingFailure()
+            ? "Invalid value."
+            : Objects.requireNonNullElse(error.getDefaultMessage(), "Invalid value.");
         return Map.of("field", error.getField(), "message", message);
     }
 
