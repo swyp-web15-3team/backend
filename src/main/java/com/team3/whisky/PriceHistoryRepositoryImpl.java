@@ -42,7 +42,7 @@ public class PriceHistoryRepositoryImpl implements PriceHistoryRepositoryCustom 
             .join(SALE_PRODUCT.retailer, RETAILER)
             .where(
                 SALE_PRODUCT.whisky.id.in(whiskyIds),
-                SALE_PRODUCT.soldOut.eq(false),
+                SALE_PRODUCT.soldOut.isNull().or(SALE_PRODUCT.soldOut.isFalse()),
                 PRICE_HISTORY.collectedAt.eq(
                     JPAExpressions.select(LATEST.collectedAt.max())
                         .from(LATEST)
