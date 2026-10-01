@@ -1,5 +1,6 @@
 package com.team3.whisky;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -13,11 +14,16 @@ public interface WhiskyRepositoryCustom {
 
     Page<Whisky> search(
         String keyword,
-        Long categoryId,
+        List<Long> categoryIds,
         Long originId,
         Long regionId,
         Integer volumeMl,
         String countryCode,
         Boolean isDutyFree,
+        BigDecimal minPrice,
+        BigDecimal maxPrice,
+        BigDecimal minPriceDiffPercent,
+        BigDecimal maxPriceDiffPercent,
+        BigDecimal krwPerJpy,
         Pageable pageable);
 }

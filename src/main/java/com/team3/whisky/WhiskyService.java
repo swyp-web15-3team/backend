@@ -1,14 +1,25 @@
 package com.team3.whisky;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+
+import com.team3.exchange.ExchangeRateService;
+import com.team3.exchange.ExchangeRateResponse;
+import com.team3.exchange.exception.ExchangeRateNotConfiguredException;
+import com.team3.exchange.exception.ExchangeRateNotFoundException;
+import com.team3.exchange.exception.ExchangeRateProviderException;
 
 import com.team3.whisky.dto.WhiskyDetailResponse;
 import com.team3.whisky.dto.WhiskyDetailResponse.SaleProductItem;
 import com.team3.whisky.dto.WhiskyListResponse;
 import com.team3.whisky.dto.WhiskyListResponse.WhiskyItem;
 import com.team3.whisky.dto.WhiskyRelatedResponse;
+import com.team3.whisky.dto.WhiskySearchRequest;
 import com.team3.whisky.dto.WhiskySuggestionsResponse;
 import com.team3.whisky.dto.WhiskySuggestionsResponse.Suggestion;
 
@@ -40,6 +51,7 @@ public class WhiskyService {
     private final WhiskyRegionRepository regions;
     private final PriceHistoryRepository prices;
     private final SaleProductRepository saleProducts;
+    private final ExchangeRateService exchangeRates;
 
     public WhiskyService(
         WhiskyRepository whiskies,
@@ -47,13 +59,15 @@ public class WhiskyService {
         WhiskyOriginRepository origins,
         WhiskyRegionRepository regions,
         PriceHistoryRepository prices,
-        SaleProductRepository saleProducts) {
+        SaleProductRepository saleProducts,
+        ExchangeRateService exchangeRates) {
         this.whiskies = whiskies;
         this.categories = categories;
         this.origins = origins;
         this.regions = regions;
         this.prices = prices;
         this.saleProducts = saleProducts;
+        this.exchangeRates = exchangeRates;
     }
 
     public WhiskySuggestionsResponse getSuggestions(String query) {
@@ -69,31 +83,34 @@ public class WhiskyService {
         return new WhiskySuggestionsResponse(suggestions);
     }
 
-    public WhiskyListResponse getWhiskies(
-        String query,
-        Long categoryId,
-        Long originId,
-        Long regionId,
-        Integer volumeMl,
-        String countryCode,
-        Boolean isDutyFree,
-        String sort,
-        Integer page,
-        Integer size) {
-        String keyword = query == null ? null : keyword(query);
-        int pageNumber = pageNumber(page);
-        int pageSize = pageSize(size);
-        String saleCountry = saleCountry(countryCode);
-        validateFilters(categoryId, originId, regionId);
+    public WhiskyListResponse getWhiskies(WhiskySearchRequest request) {
+        String keyword = request.query() == null ? null : keyword(request.query());
+        int pageNumber = pageNumber(request.page());
+        int pageSize = pageSize(request.size());
+        String saleCountry = saleCountry(request.countryCode());
+        List<Long> validatedCategoryIds = validateFilters(request.categoryId(), request.originId(), request.regionId());
+        validatePriceFilters(
+            request.minPrice(),
+            request.maxPrice(),
+            request.minPriceDiffPercent(),
+            request.maxPriceDiffPercent());
+        boolean hasPriceFilters = request.minPrice() != null || request.maxPrice() != null
+            || request.minPriceDiffPercent() != null || request.maxPriceDiffPercent() != null;
+        BigDecimal krwPerJpy = hasPriceFilters ? currentKrwPerJpy() : null;
         Page<Whisky> found = whiskies.search(
             keyword,
-            categoryId,
-            originId,
-            regionId,
-            volumeMl,
+            validatedCategoryIds,
+            request.originId(),
+            request.regionId(),
+            request.volumeMl(),
             saleCountry,
-            isDutyFree,
-            PageRequest.of(pageNumber, pageSize, listSort(sort)));
+            request.isDutyFree(),
+            request.minPrice(),
+            request.maxPrice(),
+            request.minPriceDiffPercent(),
+            request.maxPriceDiffPercent(),
+            krwPerJpy,
+            PageRequest.of(pageNumber, pageSize, listSort(request.sort())));
         return listResponse(found, pageNumber, pageSize);
     }
 
@@ -193,21 +210,82 @@ public class WhiskyService {
         throw badRequest("지원하지 않는 정렬 조건입니다.");
     }
 
-    private void validateFilters(Long categoryId, Long originId, Long regionId) {
-        if (categoryId != null && !categories.existsById(categoryId)) {
-            throw badRequest("존재하지 않는 필터 값입니다.");
+    private List<Long> validateFilters(List<Long> categoryIds, Long originId, Long regionId) {
+        List<Long> validatedCategoryIds = null;
+        if (categoryIds != null) {
+            if (categoryIds.isEmpty() || categoryIds.stream().anyMatch(id -> id == null || id <= 0)) {
+                throw badRequest("카테고리 ID가 올바르지 않습니다.");
+            }
+            validatedCategoryIds = List.copyOf(new LinkedHashSet<>(categoryIds));
+            for (Long categoryId : validatedCategoryIds) {
+                if (!categories.existsById(categoryId)) {
+                    throw badRequest("존재하지 않는 필터 값입니다.");
+                }
+            }
         }
         if (originId != null && !origins.existsById(originId)) {
             throw badRequest("존재하지 않는 필터 값입니다.");
         }
         if (regionId == null) {
-            return;
+            return validatedCategoryIds;
         }
         WhiskyRegion region = regions.findById(regionId)
             .orElseThrow(() -> badRequest("존재하지 않는 필터 값입니다."));
         if (originId != null && !originId.equals(region.origin().id())) {
             throw badRequest("생산 지역과 원산지가 일치하지 않습니다.");
         }
+        return validatedCategoryIds;
+    }
+
+    private static void validatePriceFilters(
+        BigDecimal minPrice,
+        BigDecimal maxPrice,
+        BigDecimal minPriceDiffPercent,
+        BigDecimal maxPriceDiffPercent) {
+        BigDecimal zero = BigDecimal.ZERO;
+        BigDecimal hundred = BigDecimal.valueOf(100);
+        if ((minPrice != null && minPrice.compareTo(zero) < 0)
+            || (maxPrice != null && maxPrice.compareTo(zero) < 0)
+            || (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0)) {
+            throw badRequest("가격 범위가 올바르지 않습니다.");
+        }
+        if ((minPriceDiffPercent != null
+            && (minPriceDiffPercent.compareTo(zero) < 0 || minPriceDiffPercent.compareTo(hundred) >= 0))
+            || (maxPriceDiffPercent != null
+                && (maxPriceDiffPercent.compareTo(zero) <= 0 || maxPriceDiffPercent.compareTo(hundred) > 0))
+            || (minPriceDiffPercent != null && maxPriceDiffPercent != null
+                && minPriceDiffPercent.compareTo(maxPriceDiffPercent) >= 0)) {
+            throw badRequest("가격 차이 비율 범위가 올바르지 않습니다.");
+        }
+    }
+
+    private BigDecimal currentKrwPerJpy() {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        for (int daysBack = 0; daysBack < 7; daysBack++) {
+            try {
+                BigDecimal rate = ExchangeRateResponse.from(exchangeRates.getRates(today.minusDays(daysBack)))
+                    .rates().stream()
+                    .filter(item -> "JPY".equals(item.currency()))
+                    .map(ExchangeRateResponse.Rate::rate)
+                    .findFirst()
+                    .orElseThrow(WhiskyService::exchangeRateUnavailable);
+                if (rate.signum() <= 0) {
+                    throw exchangeRateUnavailable();
+                }
+                return rate;
+            } catch (ExchangeRateNotFoundException exception) {
+                // Only a missing publication falls back to an earlier date.
+                continue;
+            } catch (ExchangeRateProviderException | ExchangeRateNotConfiguredException
+                | IllegalArgumentException | NullPointerException exception) {
+                throw exchangeRateUnavailable();
+            }
+        }
+        throw exchangeRateUnavailable();
+    }
+
+    private static ResponseStatusException exchangeRateUnavailable() {
+        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "오늘의 엔화 환율 정보를 사용할 수 없습니다.");
     }
 
     private Map<Long, WhiskyLatestPrice> latestPrices(List<SaleProduct> foundSaleProducts) {

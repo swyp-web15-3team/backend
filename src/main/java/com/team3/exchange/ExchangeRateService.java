@@ -7,6 +7,7 @@ import java.util.Optional;
 import com.team3.exchange.exception.InvalidExchangeRateDateException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -19,7 +20,7 @@ public class ExchangeRateService {
         this.client = client;
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @Transactional(isolation = Isolation.READ_COMMITTED, propagation = Propagation.REQUIRES_NEW)
     public ExchangeRateSnapshot getRates(LocalDate date) {
         if (date.isAfter(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
             throw new InvalidExchangeRateDateException();
