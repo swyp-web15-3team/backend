@@ -1,5 +1,6 @@
 package com.team3.curation;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -7,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.team3.curation.dto.CurationListResponse;
+import com.team3.exchange.YenExchangeRateLookup;
 import com.team3.whisky.PriceHistoryRepository;
 import com.team3.whisky.Whisky;
 import com.team3.whisky.WhiskyLatestPrice;
@@ -32,16 +34,19 @@ public class CurationService {
     private final CurationWhiskyRepository members;
     private final WhiskyRepository whiskies;
     private final PriceHistoryRepository prices;
+    private final YenExchangeRateLookup yenRates;
 
     public CurationService(
         CurationRepository curations,
         CurationWhiskyRepository members,
         WhiskyRepository whiskies,
-        PriceHistoryRepository prices) {
+        PriceHistoryRepository prices,
+        YenExchangeRateLookup yenRates) {
         this.curations = curations;
         this.members = members;
         this.whiskies = whiskies;
         this.prices = prices;
+        this.yenRates = yenRates;
     }
 
     public CurationListResponse getCurations(Integer page, Integer size) {
@@ -64,13 +69,14 @@ public class CurationService {
         Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
         Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
         collectLowestPrices(whiskyIds, lowestKr, lowestJp);
+        BigDecimal krwPerJpy = yenRates.findKrwPerJpy();
         List<WhiskyItem> content = new ArrayList<>();
         for (Long whiskyId : whiskyIds) {
             Whisky whisky = whiskyById.get(whiskyId);
             if (whisky == null) {
                 continue;
             }
-            content.add(WhiskyItem.from(whisky, lowestKr.get(whiskyId), lowestJp.get(whiskyId)));
+            content.add(WhiskyItem.from(whisky, lowestKr.get(whiskyId), lowestJp.get(whiskyId), krwPerJpy));
         }
         return new CurationListResponse(
             curation.id(),

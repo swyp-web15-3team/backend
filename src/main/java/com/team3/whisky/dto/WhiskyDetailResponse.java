@@ -31,8 +31,9 @@ public record WhiskyDetailResponse(
         Whisky whisky,
         WhiskyLatestPrice kr,
         WhiskyLatestPrice jp,
-        List<SaleProductItem> saleProducts) {
-        WhiskyItem item = WhiskyItem.from(whisky, kr, jp);
+        List<SaleProductItem> saleProducts,
+        BigDecimal krwPerJpy) {
+        WhiskyItem item = WhiskyItem.from(whisky, kr, jp, krwPerJpy);
         return new WhiskyDetailResponse(
             item.id(),
             item.name(),
@@ -59,7 +60,8 @@ public record WhiskyDetailResponse(
         Boolean isSoldOut,
         SalePrice price) {
 
-        public static SaleProductItem from(SaleProduct saleProduct, WhiskyLatestPrice latestPrice) {
+        public static SaleProductItem from(
+            SaleProduct saleProduct, WhiskyLatestPrice latestPrice, BigDecimal krwPerJpy) {
             return new SaleProductItem(
                 saleProduct.id(),
                 saleProduct.retailer().name(),
@@ -69,7 +71,7 @@ public record WhiskyDetailResponse(
                 saleProduct.productUrl(),
                 saleProduct.imageUrl(),
                 saleProduct.isSoldOut(),
-                SalePrice.from(latestPrice));
+                SalePrice.from(latestPrice, krwPerJpy));
         }
     }
 
@@ -80,12 +82,22 @@ public record WhiskyDetailResponse(
         Instant collectedAt,
         boolean stale) {
 
-        private static SalePrice from(WhiskyLatestPrice latestPrice) {
+        private static SalePrice from(WhiskyLatestPrice latestPrice, BigDecimal krwPerJpy) {
             if (latestPrice == null) {
                 return null;
             }
+            BigDecimal amountKrw = null;
+            if ("KRW".equals(latestPrice.currencyCode())) {
+                amountKrw = latestPrice.amount();
+            } else if ("JPY".equals(latestPrice.currencyCode()) && krwPerJpy != null) {
+                amountKrw = latestPrice.amount().multiply(krwPerJpy);
+            }
             return new SalePrice(
-                latestPrice.amount(), latestPrice.currencyCode(), null, latestPrice.collectedAt(), false);
+                latestPrice.amount(),
+                latestPrice.currencyCode(),
+                amountKrw,
+                latestPrice.collectedAt(),
+                false);
         }
     }
 }

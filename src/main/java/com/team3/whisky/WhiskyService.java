@@ -1,18 +1,12 @@
 package com.team3.whisky;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
-import com.team3.exchange.ExchangeRateService;
-import com.team3.exchange.ExchangeRateResponse;
-import com.team3.exchange.exception.ExchangeRateNotConfiguredException;
-import com.team3.exchange.exception.ExchangeRateNotFoundException;
-import com.team3.exchange.exception.ExchangeRateProviderException;
+import com.team3.exchange.YenExchangeRateLookup;
 
 import com.team3.whisky.dto.WhiskyDetailResponse;
 import com.team3.whisky.dto.WhiskyDetailResponse.SaleProductItem;
@@ -51,7 +45,7 @@ public class WhiskyService {
     private final WhiskyRegionRepository regions;
     private final PriceHistoryRepository prices;
     private final SaleProductRepository saleProducts;
-    private final ExchangeRateService exchangeRates;
+    private final YenExchangeRateLookup yenRates;
 
     public WhiskyService(
         WhiskyRepository whiskies,
@@ -60,14 +54,14 @@ public class WhiskyService {
         WhiskyRegionRepository regions,
         PriceHistoryRepository prices,
         SaleProductRepository saleProducts,
-        ExchangeRateService exchangeRates) {
+        YenExchangeRateLookup yenRates) {
         this.whiskies = whiskies;
         this.categories = categories;
         this.origins = origins;
         this.regions = regions;
         this.prices = prices;
         this.saleProducts = saleProducts;
-        this.exchangeRates = exchangeRates;
+        this.yenRates = yenRates;
     }
 
     public WhiskySuggestionsResponse getSuggestions(String query) {
@@ -96,7 +90,7 @@ public class WhiskyService {
             request.maxPriceDiffPercent());
         boolean hasPriceFilters = request.minPrice() != null || request.maxPrice() != null
             || request.minPriceDiffPercent() != null || request.maxPriceDiffPercent() != null;
-        BigDecimal krwPerJpy = hasPriceFilters ? currentKrwPerJpy() : null;
+        BigDecimal krwPerJpy = hasPriceFilters ? currentKrwPerJpy() : yenRates.findKrwPerJpy();
         Page<Whisky> found = whiskies.search(
             keyword,
             validatedCategoryIds,
@@ -111,13 +105,13 @@ public class WhiskyService {
             request.maxPriceDiffPercent(),
             krwPerJpy,
             PageRequest.of(pageNumber, pageSize, listSort(request.sort())));
-        return listResponse(found, pageNumber, pageSize);
+        return listResponse(found, pageNumber, pageSize, krwPerJpy);
     }
 
     public WhiskyListResponse getCollectionWhiskies(Long collectionId, int page, int size) {
         Page<Whisky> found = whiskies.findByCollectionId(
             collectionId, PageRequest.of(page, size, Sort.by(Order.asc("name"), Order.asc("id"))));
-        return listResponse(found, page, size);
+        return listResponse(found, page, size, yenRates.findKrwPerJpy());
     }
 
     public WhiskyDetailResponse getWhisky(Long whiskyId) {
@@ -128,10 +122,13 @@ public class WhiskyService {
         Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
         Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
         collectLowestPrices(List.of(whisky), lowestKr, lowestJp);
+        BigDecimal krwPerJpy = yenRates.findKrwPerJpy();
         List<SaleProductItem> items = foundSaleProducts.stream()
-            .map(saleProduct -> SaleProductItem.from(saleProduct, latestBySaleProduct.get(saleProduct.id())))
+            .map(saleProduct -> SaleProductItem.from(
+                saleProduct, latestBySaleProduct.get(saleProduct.id()), krwPerJpy))
             .toList();
-        return WhiskyDetailResponse.from(whisky, lowestKr.get(whiskyId), lowestJp.get(whiskyId), items);
+        return WhiskyDetailResponse.from(
+            whisky, lowestKr.get(whiskyId), lowestJp.get(whiskyId), items, krwPerJpy);
     }
 
     public WhiskyRelatedResponse getRelated(Long whiskyId) {
@@ -149,8 +146,9 @@ public class WhiskyService {
         Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
         Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
         collectLowestPrices(related, lowestKr, lowestJp);
+        BigDecimal krwPerJpy = yenRates.findKrwPerJpy();
         List<WhiskyItem> items = related.stream()
-            .map(item -> WhiskyItem.from(item, lowestKr.get(item.id()), lowestJp.get(item.id())))
+            .map(item -> WhiskyItem.from(item, lowestKr.get(item.id()), lowestJp.get(item.id()), krwPerJpy))
             .toList();
         return new WhiskyRelatedResponse(items);
     }
@@ -260,28 +258,11 @@ public class WhiskyService {
     }
 
     private BigDecimal currentKrwPerJpy() {
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
-        for (int daysBack = 0; daysBack < 7; daysBack++) {
-            try {
-                BigDecimal rate = ExchangeRateResponse.from(exchangeRates.getRates(today.minusDays(daysBack)))
-                    .rates().stream()
-                    .filter(item -> "JPY".equals(item.currency()))
-                    .map(ExchangeRateResponse.Rate::rate)
-                    .findFirst()
-                    .orElseThrow(WhiskyService::exchangeRateUnavailable);
-                if (rate.signum() <= 0) {
-                    throw exchangeRateUnavailable();
-                }
-                return rate;
-            } catch (ExchangeRateNotFoundException exception) {
-                // Only a missing publication falls back to an earlier date.
-                continue;
-            } catch (ExchangeRateProviderException | ExchangeRateNotConfiguredException
-                | IllegalArgumentException | NullPointerException exception) {
-                throw exchangeRateUnavailable();
-            }
+        BigDecimal rate = yenRates.findKrwPerJpy();
+        if (rate == null) {
+            throw exchangeRateUnavailable();
         }
-        throw exchangeRateUnavailable();
+        return rate;
     }
 
     private static ResponseStatusException exchangeRateUnavailable() {
@@ -317,12 +298,14 @@ public class WhiskyService {
         }
     }
 
-    private WhiskyListResponse listResponse(Page<Whisky> found, int pageNumber, int pageSize) {
+    private WhiskyListResponse listResponse(
+        Page<Whisky> found, int pageNumber, int pageSize, BigDecimal krwPerJpy) {
         Map<Long, WhiskyLatestPrice> lowestKr = new HashMap<>();
         Map<Long, WhiskyLatestPrice> lowestJp = new HashMap<>();
         collectLowestPrices(found.getContent(), lowestKr, lowestJp);
         List<WhiskyItem> content = found.getContent().stream()
-            .map(whisky -> WhiskyItem.from(whisky, lowestKr.get(whisky.id()), lowestJp.get(whisky.id())))
+            .map(whisky -> WhiskyItem.from(
+                whisky, lowestKr.get(whisky.id()), lowestJp.get(whisky.id()), krwPerJpy))
             .toList();
         return new WhiskyListResponse(content, pageNumber, pageSize, found.getTotalElements(), found.getTotalPages());
     }
