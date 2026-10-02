@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.team3.exchange.ExchangeRateService;
+import com.team3.exchange.YenExchangeRateLookup;
 import com.team3.security.SecurityConfig;
 import com.team3.user.User;
 import com.team3.user.enums.Provider;
@@ -59,7 +60,7 @@ import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 @WebMvcTest(CollectionController.class)
-@Import({SecurityConfig.class, CollectionService.class, WhiskyService.class})
+@Import({SecurityConfig.class, CollectionService.class, WhiskyService.class, YenExchangeRateLookup.class})
 class CollectionHttpTests {
 
     @Autowired
