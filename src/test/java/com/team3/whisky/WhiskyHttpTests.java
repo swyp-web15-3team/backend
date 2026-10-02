@@ -26,6 +26,7 @@ import java.util.Optional;
 import com.team3.security.SecurityConfig;
 import com.team3.exchange.ExchangeRateService;
 import com.team3.exchange.ExchangeRateSnapshot;
+import com.team3.exchange.YenExchangeRateLookup;
 import com.team3.exchange.exception.ExchangeRateNotFoundException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,7 +46,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(WhiskyController.class)
-@Import({SecurityConfig.class, WhiskyService.class})
+@Import({SecurityConfig.class, WhiskyService.class, YenExchangeRateLookup.class})
 class WhiskyHttpTests {
 
     private static final Limit SUGGESTION_LIMIT = Limit.of(10);
@@ -143,6 +144,7 @@ class WhiskyHttpTests {
                 101L, new BigDecimal("189000"), "KRW", "KR", "롯데면세점", COLLECTED_AT, 1L),
             new WhiskyLatestPrice(
                 101L, new BigDecimal("9800"), "JPY", "JP", "나리타 면세", COLLECTED_AT, 2L)));
+        whenYenRateAvailable();
 
         mvc.perform(get("/api/v1/whiskies"))
             .andExpect(status().isOk())
@@ -166,7 +168,7 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.content[0].kr.stale").value(false))
             .andExpect(jsonPath("$.data.content[0].jp.amount").value(9800))
             .andExpect(jsonPath("$.data.content[0].jp.currency").value("JPY"))
-            .andExpect(jsonPath("$.data.content[0].jp.amountKrw").isEmpty())
+            .andExpect(jsonPath("$.data.content[0].jp.amountKrw").value(93982.0))
             .andExpect(jsonPath("$.data.content[0].jp.retailerName").value("나리타 면세"))
             .andExpect(jsonPath("$.data.content[0].jp.stale").value(false))
             .andExpect(jsonPath("$.data.content[0].comparison").isEmpty())
@@ -392,6 +394,7 @@ class WhiskyHttpTests {
                 101L, new BigDecimal("189000"), "KRW", "KR", "롯데면세점", COLLECTED_AT, 501L),
             new WhiskyLatestPrice(
                 101L, new BigDecimal("200000"), "KRW", "KR", "품절점", COLLECTED_AT, 503L)));
+        whenYenRateAvailable();
 
         mvc.perform(get("/api/v1/whiskies/101"))
             .andExpect(status().isOk())
@@ -414,7 +417,7 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.kr.stale").value(false))
             .andExpect(jsonPath("$.data.jp.amount").value(9800))
             .andExpect(jsonPath("$.data.jp.currency").value("JPY"))
-            .andExpect(jsonPath("$.data.jp.amountKrw").isEmpty())
+            .andExpect(jsonPath("$.data.jp.amountKrw").value(93982.0))
             .andExpect(jsonPath("$.data.jp.retailerName").value("나리타 면세"))
             .andExpect(jsonPath("$.data.jp.stale").value(false))
             .andExpect(jsonPath("$.data.comparison").isEmpty())
@@ -429,14 +432,39 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.saleProducts[0].isSoldOut").value(false))
             .andExpect(jsonPath("$.data.saleProducts[0].price.amount").value(189000))
             .andExpect(jsonPath("$.data.saleProducts[0].price.currency").value("KRW"))
-            .andExpect(jsonPath("$.data.saleProducts[0].price.amountKrw").isEmpty())
+            .andExpect(jsonPath("$.data.saleProducts[0].price.amountKrw").value(189000))
             .andExpect(jsonPath("$.data.saleProducts[0].price.collectedAt").value("2026-09-07T18:00:00Z"))
             .andExpect(jsonPath("$.data.saleProducts[0].price.stale").value(false))
             .andExpect(jsonPath("$.data.saleProducts[1].id").value(503))
             .andExpect(jsonPath("$.data.saleProducts[1].imageUrl").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(jsonPath("$.data.saleProducts[1].isSoldOut").value(true))
             .andExpect(jsonPath("$.data.saleProducts[1].retailerAddress").isEmpty())
-            .andExpect(jsonPath("$.data.saleProducts[1].price.amount").value(200000));
+            .andExpect(jsonPath("$.data.saleProducts[1].price.amount").value(200000))
+            .andExpect(jsonPath("$.data.saleProducts[1].price.amountKrw").value(200000));
+    }
+
+    @Test
+    void convertsJapaneseSaleProductAmountToKrw() throws Exception {
+        Whisky whisky = listedWhisky();
+        when(whiskies.findById(101L)).thenReturn(Optional.of(whisky));
+        SaleProduct mukawa = saleProduct(
+            6802L, "무카와", null, "JP", false, "https://example.com/mukawa/6802", null);
+        when(saleProducts.findByWhiskyIdOrderByIdAsc(101L)).thenReturn(List.of(mukawa));
+        when(prices.findLatestAvailablePrices(List.of(101L))).thenReturn(List.of(
+            new WhiskyLatestPrice(
+                101L, new BigDecimal("41800"), "JPY", "JP", "무카와", COLLECTED_AT, 6802L)));
+        when(prices.findLatestPrices(List.of(6802L))).thenReturn(List.of(
+            new WhiskyLatestPrice(
+                101L, new BigDecimal("41800"), "JPY", "JP", "무카와", COLLECTED_AT, 6802L)));
+        whenYenRateAvailable();
+
+        mvc.perform(get("/api/v1/whiskies/101"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.jp.amount").value(41800))
+            .andExpect(jsonPath("$.data.jp.amountKrw").value(400862.0))
+            .andExpect(jsonPath("$.data.saleProducts[0].price.amount").value(41800))
+            .andExpect(jsonPath("$.data.saleProducts[0].price.currency").value("JPY"))
+            .andExpect(jsonPath("$.data.saleProducts[0].price.amountKrw").value(400862.0));
     }
 
     @Test
@@ -503,6 +531,7 @@ class WhiskyHttpTests {
                 102L, new BigDecimal("120000"), "KRW", "KR", "롯데면세점", COLLECTED_AT, 1L),
             new WhiskyLatestPrice(
                 102L, new BigDecimal("6800"), "JPY", "JP", "나리타 면세", COLLECTED_AT, 2L)));
+        whenYenRateAvailable();
 
         mvc.perform(get("/api/v1/whiskies/101/related"))
             .andExpect(status().isOk())
@@ -522,7 +551,7 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.whiskies[0].kr.stale").value(false))
             .andExpect(jsonPath("$.data.whiskies[0].jp.amount").value(6800))
             .andExpect(jsonPath("$.data.whiskies[0].jp.currency").value("JPY"))
-            .andExpect(jsonPath("$.data.whiskies[0].jp.amountKrw").isEmpty())
+            .andExpect(jsonPath("$.data.whiskies[0].jp.amountKrw").value(65212.0))
             .andExpect(jsonPath("$.data.whiskies[0].jp.retailerName").value("나리타 면세"))
             .andExpect(jsonPath("$.data.whiskies[0].jp.stale").value(false))
             .andExpect(jsonPath("$.data.whiskies[0].comparison").isEmpty());
@@ -581,6 +610,12 @@ class WhiskyHttpTests {
     private void whenSearchReturns(PageImpl<Whisky> page) {
         when(whiskies.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
             any(Pageable.class))).thenReturn(page);
+    }
+
+    private void whenYenRateAvailable() throws Exception {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        when(exchangeRates.getRates(today)).thenReturn(new ExchangeRateSnapshot(today,
+            new ObjectMapper().readTree("[{\"cur_unit\":\"JPY(100)\",\"deal_bas_r\":\"959.00\"}]")));
     }
 
     private Whisky whisky(Long id, String name) {

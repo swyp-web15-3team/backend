@@ -30,7 +30,8 @@ public record WhiskyListResponse(
         JpPrice jp,
         Comparison comparison) {
 
-        public static WhiskyItem from(Whisky whisky, WhiskyLatestPrice kr, WhiskyLatestPrice jp) {
+        public static WhiskyItem from(
+            Whisky whisky, WhiskyLatestPrice kr, WhiskyLatestPrice jp, BigDecimal krwPerJpy) {
             return new WhiskyItem(
                 whisky.id(),
                 whisky.name(),
@@ -41,7 +42,7 @@ public record WhiskyListResponse(
                 named(whisky.origin()),
                 named(whisky.region()),
                 krPrice(kr),
-                jpPrice(jp),
+                jpPrice(jp, krwPerJpy),
                 null);
         }
 
@@ -71,14 +72,18 @@ public record WhiskyListResponse(
                 price.amount(), price.currencyCode(), price.retailerName(), price.collectedAt(), false);
         }
 
-        private static JpPrice jpPrice(WhiskyLatestPrice price) {
+        private static JpPrice jpPrice(WhiskyLatestPrice price, BigDecimal krwPerJpy) {
             if (price == null) {
                 return null;
+            }
+            BigDecimal amountKrw = null;
+            if (krwPerJpy != null) {
+                amountKrw = price.amount().multiply(krwPerJpy);
             }
             return new JpPrice(
                 price.amount(),
                 price.currencyCode(),
-                null,
+                amountKrw,
                 price.retailerName(),
                 price.collectedAt(),
                 false);
