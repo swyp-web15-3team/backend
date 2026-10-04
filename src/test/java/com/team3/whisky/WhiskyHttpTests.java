@@ -171,7 +171,9 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.content[0].jp.amountKrw").value(93982.0))
             .andExpect(jsonPath("$.data.content[0].jp.retailerName").value("나리타 면세"))
             .andExpect(jsonPath("$.data.content[0].jp.stale").value(false))
-            .andExpect(jsonPath("$.data.content[0].comparison").isEmpty())
+            .andExpect(jsonPath("$.data.content[0].comparison.diffAmountKrw").value(95018))
+            .andExpect(jsonPath("$.data.content[0].comparison.diffRatio").value(0.5027))
+            .andExpect(jsonPath("$.data.content[0].comparison.cheaperCountry").value("JP"))
             .andExpect(jsonPath("$.data.page").value(0))
             .andExpect(jsonPath("$.data.size").value(20))
             .andExpect(jsonPath("$.data.totalElements").value(1))
@@ -187,6 +189,56 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.content").isEmpty())
             .andExpect(jsonPath("$.data.totalElements").value(0))
             .andExpect(jsonPath("$.data.totalPages").value(0));
+    }
+
+    @Test
+    void comparesPricesForReverseAndTieCases() throws Exception {
+        Whisky krCheaper = whiskyCard(201L, "KR cheaper", new BigDecimal("40.0"));
+        Whisky tied = whiskyCard(202L, "Tied", new BigDecimal("40.0"));
+        whenSearchReturns(new PageImpl<>(List.of(krCheaper, tied), PageRequest.of(0, 20), 2));
+        when(prices.findLatestAvailablePrices(List.of(201L, 202L))).thenReturn(List.of(
+            new WhiskyLatestPrice(201L, new BigDecimal("90000"), "KRW", "KR", "KR shop", COLLECTED_AT, 1L),
+            new WhiskyLatestPrice(201L, new BigDecimal("9800"), "JPY", "JP", "JP shop", COLLECTED_AT, 2L),
+            new WhiskyLatestPrice(202L, new BigDecimal("93982"), "KRW", "KR", "KR shop", COLLECTED_AT, 3L),
+            new WhiskyLatestPrice(202L, new BigDecimal("9800"), "JPY", "JP", "JP shop", COLLECTED_AT, 4L)));
+        whenYenRateAvailable();
+
+        mvc.perform(get("/api/v1/whiskies"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.content[0].comparison.diffAmountKrw").value(-3982))
+            .andExpect(jsonPath("$.data.content[0].comparison.diffRatio").value(-0.0442))
+            .andExpect(jsonPath("$.data.content[0].comparison.cheaperCountry").value("KR"))
+            .andExpect(jsonPath("$.data.content[1].comparison.diffAmountKrw").value(0))
+            .andExpect(jsonPath("$.data.content[1].comparison.diffRatio").value(0))
+            .andExpect(jsonPath("$.data.content[1].comparison.cheaperCountry").doesNotExist());
+    }
+
+    @Test
+    void comparisonIsNullWhenExchangeRateIsUnavailable() throws Exception {
+        Whisky whisky = listedWhisky();
+        whenSearchReturns(new PageImpl<>(List.of(whisky), PageRequest.of(0, 20), 1));
+        when(prices.findLatestAvailablePrices(List.of(101L))).thenReturn(List.of(
+            new WhiskyLatestPrice(101L, new BigDecimal("189000"), "KRW", "KR", "KR shop", COLLECTED_AT, 1L),
+            new WhiskyLatestPrice(101L, new BigDecimal("9800"), "JPY", "JP", "JP shop", COLLECTED_AT, 2L)));
+
+        mvc.perform(get("/api/v1/whiskies"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.content[0].jp.amountKrw").isEmpty())
+            .andExpect(jsonPath("$.data.content[0].comparison").isEmpty());
+    }
+
+    @Test
+    void comparisonIsNullWhenOnlyOneCountryHasAPrice() throws Exception {
+        Whisky whisky = listedWhisky();
+        whenSearchReturns(new PageImpl<>(List.of(whisky), PageRequest.of(0, 20), 1));
+        when(prices.findLatestAvailablePrices(List.of(101L))).thenReturn(List.of(
+            new WhiskyLatestPrice(101L, new BigDecimal("189000"), "KRW", "KR", "KR shop", COLLECTED_AT, 1L)));
+        whenYenRateAvailable();
+
+        mvc.perform(get("/api/v1/whiskies"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.content[0].jp").isEmpty())
+            .andExpect(jsonPath("$.data.content[0].comparison").isEmpty());
     }
 
     @Test
@@ -420,7 +472,9 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.jp.amountKrw").value(93982.0))
             .andExpect(jsonPath("$.data.jp.retailerName").value("나리타 면세"))
             .andExpect(jsonPath("$.data.jp.stale").value(false))
-            .andExpect(jsonPath("$.data.comparison").isEmpty())
+            .andExpect(jsonPath("$.data.comparison.diffAmountKrw").value(95018))
+            .andExpect(jsonPath("$.data.comparison.diffRatio").value(0.5027))
+            .andExpect(jsonPath("$.data.comparison.cheaperCountry").value("JP"))
             .andExpect(jsonPath("$.data.saleProducts.length()").value(2))
             .andExpect(jsonPath("$.data.saleProducts[0].id").value(501))
             .andExpect(jsonPath("$.data.saleProducts[0].imageUrl").value("https://example.com/retailer.jpg"))
@@ -554,7 +608,9 @@ class WhiskyHttpTests {
             .andExpect(jsonPath("$.data.whiskies[0].jp.amountKrw").value(65212.0))
             .andExpect(jsonPath("$.data.whiskies[0].jp.retailerName").value("나리타 면세"))
             .andExpect(jsonPath("$.data.whiskies[0].jp.stale").value(false))
-            .andExpect(jsonPath("$.data.whiskies[0].comparison").isEmpty());
+            .andExpect(jsonPath("$.data.whiskies[0].comparison.diffAmountKrw").value(54788))
+            .andExpect(jsonPath("$.data.whiskies[0].comparison.diffRatio").value(0.4566))
+            .andExpect(jsonPath("$.data.whiskies[0].comparison.cheaperCountry").value("JP"));
         verify(whiskies, never()).findRelated(101L, null, 1L, 10);
     }
 

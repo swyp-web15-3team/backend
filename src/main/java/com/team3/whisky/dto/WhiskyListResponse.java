@@ -1,6 +1,7 @@
 package com.team3.whisky.dto;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
 
@@ -43,7 +44,24 @@ public record WhiskyListResponse(
                 named(whisky.region()),
                 krPrice(kr),
                 jpPrice(jp, krwPerJpy),
-                null);
+                comparison(kr, jp, krwPerJpy));
+        }
+
+        private static Comparison comparison(
+            WhiskyLatestPrice kr, WhiskyLatestPrice jp, BigDecimal krwPerJpy) {
+            if (kr == null || jp == null || krwPerJpy == null) {
+                return null;
+            }
+
+            BigDecimal jpAmountKrw = jp.amount().multiply(krwPerJpy);
+            BigDecimal diffAmountKrw = kr.amount().subtract(jpAmountKrw);
+            String cheaperCountry = switch (diffAmountKrw.signum()) {
+                case 1 -> "JP";
+                case -1 -> "KR";
+                default -> null;
+            };
+            BigDecimal diffRatio = diffAmountKrw.divide(kr.amount(), 4, RoundingMode.HALF_UP);
+            return new Comparison(diffAmountKrw, diffRatio, cheaperCountry);
         }
 
         private static NamedRef named(WhiskyCategory category) {
